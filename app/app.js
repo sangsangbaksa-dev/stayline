@@ -668,6 +668,84 @@
   }
   function applyTheme() { var mt = document.querySelector('meta[name=theme-color]'), lt = state.theme === 'light' || (!state.theme && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches); if (mt) mt.setAttribute('content', lt ? '#f6f3ec' : '#14171a'); var th = state.theme === 'light' || state.theme === 'dark' ? state.theme : ''; if (th) document.documentElement.setAttribute('data-theme', th); else document.documentElement.removeAttribute('data-theme'); }
   if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () { applyTheme(); }); } catch (e) {} }
+  /* ── AI explanation (optional, Pro only). The basic text comes from core.js; the model only rewrites it in plain language.
+     The key lives in its own localStorage item, outside state, so it is never part of the cloud snapshot. */
+  var AI_KEY = 'stayline-ai-key', AI_MODEL = 'claude-haiku-5-5';
+  var aiState = null, aiMsg = '', aiBusy = false, aiOpen = false;
+  function aiKey() { try { return (localStorage.getItem(AI_KEY) || '').trim(); } catch (e) { return ''; } }
+  function aiLine(item) {
+    var v = {}; for (var k in item.vars) v[k] = k === 'date' ? fmt(item.vars[k]) : item.vars[k];
+    return T(item.key, v);
+  }
+  function aiError(e) {
+    if (e && e.name === 'AbortError') return T('aiErrTimeout');
+    if (e && e.status === 401) return T('aiErr401');
+    if (e && e.status === 429) return T('aiErr429');
+    if (e && e.status) return T('aiErrHttp', { n: e.status });
+    if (e && e.message === 'format') return T('aiErrFormat');
+    return T('aiErrNet');
+  }
+  function aiRun(tr) {
+    if (aiBusy) return;
+    var key = aiKey();
+    if (!key) { aiMsg = T('aiNeedKey'); aiOpen = true; render(); return; }
+    var today = C.todayStr(), prompt = C.aiPrompt(tr, today, lang), sig = lang + '|' + prompt.user, id = tr.id;
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 30000);
+    aiBusy = true; aiMsg = T('aiBusy'); render();
+    fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: AI_MODEL, max_tokens: 500, system: prompt.system, messages: [{ role: 'user', content: prompt.user }] }),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function (r) {
+      if (!r.ok) { var err = new Error('http'); err.status = r.status; throw err; }
+      return r.json();
+    }).then(function (j) {
+      var data = C.parseAdvice(C.replyText(j));
+      if (!data) throw new Error('format');
+      aiState = { id: id, sig: sig, data: data }; aiMsg = T('aiDone');
+    }).catch(function (e) { aiMsg = aiError(e); }).then(function () {
+      clearTimeout(timer); aiBusy = false; render();
+    });
+  }
+  function aiSaveKey() {
+    var inp = document.getElementById('aiKeyIn'), v = inp ? inp.value.trim() : '';
+    aiOpen = true;
+    if (!/^sk-[\x21-\x7e]{10,}$/.test(v)) { aiMsg = T('aiKeyBad'); render(); return; }
+    try { localStorage.setItem(AI_KEY, v); aiMsg = T('aiKeySaved'); } catch (e) { aiMsg = T('saveFail'); }
+    render();
+  }
+  function aiClearKey() {
+    try { localStorage.removeItem(AI_KEY); } catch (e) {}
+    aiState = null; aiOpen = true; aiMsg = T('aiKeyRemoved'); render();
+  }
+  function aiCard(tr) {
+    var today = C.todayStr(), loc = C.localAdvice(tr, today), sig = lang + '|' + C.aiPrompt(tr, today, lang).user;
+    var ok = aiState && aiState.id === tr.id && aiState.sig === sig, stale = aiState && aiState.id === tr.id && !ok;
+    var lines = ok ? [aiState.data.summary] : loc.lines.map(aiLine);
+    var steps = ok ? aiState.data.steps : loc.steps.map(aiLine);
+    var hasKey = !!aiKey();
+    return h('section', { class: 'card ai' }, [
+      h('h2', null, T('aiH')),
+      h('p', { class: 'muted' }, ok ? T('aiAiMode', { model: AI_MODEL }) : T('aiLocalMode')),
+      h('div', { class: 'aiText' }, lines.map(function (x) { return h('p', null, x); })),
+      steps.length ? h('div', null, [h('strong', null, T('aiSteps')), h('ul', { class: 'aiSteps' }, steps.map(function (x) { return h('li', null, x); }))]) : null,
+      stale ? h('p', { class: 'muted' }, T('aiStale')) : null,
+      h('div', { class: 'row wrap' }, [h('button', { class: 'primary small', onclick: function () { aiRun(tr); }, disabled: aiBusy ? '' : false }, T(hasKey ? 'aiRun' : 'aiRunNoKey'))]),
+      aiMsg ? h('p', { class: 'muted', role: 'status' }, aiMsg) : null,
+      h('details', { class: 'aiKey', open: aiOpen ? '' : false }, [
+        h('summary', null, T('aiKeyH')),
+        h('p', { class: 'muted' }, T('aiKeyNote')),
+        h('input', { id: 'aiKeyIn', type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: 'sk-ant-...', 'aria-label': T('aiKeyH') }),
+        h('div', { class: 'row wrap' }, [
+          h('button', { class: 'ghost small', onclick: aiSaveKey }, T('aiKeySave')),
+          h('button', { class: 'ghost small', onclick: aiClearKey }, T('aiKeyClear'))
+        ])
+      ])
+    ]);
+  }
+
   function render() {
     var fid = document.activeElement && document.activeElement.id;
     applyTheme();
@@ -682,7 +760,7 @@
       var rc = reminderCard(); if (rc) kids.push(rc);
       kids.push(tabs());
       if (state.trackers.length > 1) kids.push(overview());
-      kids.push(board(tr), leaveCard(tr), keyDates(tr), planner(tr), itinerary(tr), rulesCard(tr));
+      kids.push(board(tr), aiCard(tr), leaveCard(tr), keyDates(tr), planner(tr), itinerary(tr), rulesCard(tr));
       if (state.trackers.length > 1) kids.push(groupCard());
       kids.push(calendarCard(tr), forecastCard(tr), monthCard(tr), weeklyCard(tr), placesCard(tr), statsCard(tr), auditCard(tr), borderCard(tr), tripList(tr));
       var pr = h('div', { class: 'printonly' }, [h('h1', null, T('printTitle') + ' — ' + tr.name)]);

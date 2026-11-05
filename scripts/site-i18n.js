@@ -8,6 +8,7 @@ module.exports = {
     privH: 'Privacy', termsH: 'Terms',
     priv: [
       'The trips you enter are stored in this browser on your device (local storage). They are not sent to us or to anyone else unless you choose the optional cloud backup: if you log in with an email and password, a copy of your trip data (not your licence key) is stored with our database provider, Supabase, so you can use it on another device. You can log out at any time. Without logging in, Stayline needs no account. It uses no cookies and no analytics and never asks for your location.',
+      'AI explanation is optional. If you add your own Anthropic API key and ask for an explanation, the counter rule, day counts, dates and the place names of upcoming trips are sent from your browser straight to api.anthropic.com. The key stays on your device, and nothing is sent until you press the button.',
       'Clearing the site data of your browser deletes your trips. Use Backup in the app to keep a copy.',
       'Share link (optional): when you create a read-only share link, your trips (without notes) are packed into the part of the link after #. Browsers do not send that part to any server, so we never receive it, but anyone who has the link can see those trips. Share it only with people you trust.',
       'When you activate a Pro licence key, the key is sent to our server and on to our payment provider only to check that it is valid. Nothing else is sent. Payments are handled by that provider under its own privacy policy.',
@@ -31,6 +32,7 @@ module.exports = {
     privH: '개인정보', termsH: '이용약관',
     priv: [
       '입력한 체류 기록은 이 기기의 브라우저(로컬 저장소)에 저장되며 저희나 다른 곳으로 전송되지 않습니다. 다만 선택 기능인 클라우드 백업에 이메일과 비밀번호로 로그인하면, 다른 기기에서도 쓸 수 있도록 체류 기록 사본(라이선스 키 제외)이 저희의 데이터베이스 제공업체 Supabase에 저장됩니다. 로그아웃은 언제든 가능합니다. 로그인하지 않으면 계정이 필요 없고, 스테이라인은 쿠키와 분석 도구를 쓰지 않으며 위치 정보도 요청하지 않습니다.',
+      'AI 설명은 선택 기능입니다. 본인의 Anthropic API 키를 추가하고 설명을 요청하면, 규칙, 체류 일수, 날짜, 예정 여행의 장소 이름이 브라우저에서 api.anthropic.com으로 직접 전송됩니다. 키는 이 기기에만 저장되며, 버튼을 누르기 전에는 아무것도 전송되지 않습니다.',
       '브라우저의 사이트 데이터를 지우면 기록도 삭제됩니다. 앱의 백업 기능으로 사본을 보관하세요.',
       '공유 링크(선택): 읽기 전용 공유 링크를 만들면 체류 기록(메모 제외)이 링크의 # 뒷부분에 담깁니다. 브라우저는 이 부분을 서버로 보내지 않으므로 운영자는 받지 않지만, 링크를 가진 사람은 누구나 그 기록을 볼 수 있습니다. 믿을 수 있는 사람에게만 공유하세요.',
       'Pro 라이선스 키를 활성화하면 키가 유효한지 확인하기 위해 저희 서버와 결제 대행사로 키만 전송됩니다. 그 밖의 정보는 보내지 않습니다. 결제는 해당 대행사의 개인정보 정책에 따라 처리됩니다.',
@@ -54,6 +56,7 @@ module.exports = {
     privH: 'プライバシー', termsH: '利用規約',
     priv: [
       '入力した滞在記録は、お使いの端末のブラウザ（ローカルストレージ）に保存され、当方や第三者には送信されません。ただし任意のクラウドバックアップにメールアドレスとパスワードでログインした場合に限り、他の端末で使えるよう滞在記録のコピー（ライセンスキーを除く）が、当方のデータベース事業者 Supabase に保存されます。ログアウトはいつでもできます。ログインしなければアカウントは不要で、Cookie も解析ツールも使わず、位置情報も求めません。',
+      'AIによる説明は任意です。ご自身の Anthropic API キーを追加して説明を依頼すると、ルール、滞在日数、日付、予定旅行の場所名がブラウザから api.anthropic.com に直接送信されます。キーは端末内にのみ保存され、ボタンを押すまでは何も送信されません。',
       'ブラウザのサイトデータを消すと記録も消えます。アプリのバックアップで控えを保存してください。',
       '共有リンク(任意)：読み取り専用の共有リンクを作ると、滞在記録(メモを除く)がリンクの # 以降に入ります。ブラウザはこの部分をサーバーに送らないため運営者は受け取りませんが、リンクを持つ人は誰でもその記録を見られます。信頼できる相手にだけ共有してください。',
       'Pro のライセンスキーを有効化すると、有効性を確認するためだけにキーが当方のサーバーと決済事業者へ送られます。それ以外は送信しません。決済は事業者のプライバシーポリシーに従って処理されます。',
@@ -77,6 +80,7 @@ module.exports = {
     privH: '隐私', termsH: '条款',
     priv: [
       '你填写的行程保存在此设备的浏览器中（本地存储），不会发送给我们或任何人。但如果你选择可选的云备份并用邮箱和密码登录，你的行程数据副本（不含许可证密钥）会存放在我们的数据库服务商 Supabase，以便在其他设备使用，可随时退出登录。不登录则无需账号；本应用不使用 Cookie 和统计工具，也从不请求你的位置。',
+      'AI 说明为可选功能。如果你添加自己的 Anthropic API 密钥并请求说明，规则、停留天数、日期以及即将到来的行程地点名称会从你的浏览器直接发送到 api.anthropic.com。密钥只保存在你的设备上，在你点击按钮之前不会发送任何内容。',
       '清除浏览器的网站数据会删除你的行程。请用应用里的备份功能保存副本。',
       '分享链接（可选）：创建只读分享链接时，你的行程（不含备注）会放在链接 # 之后的部分。浏览器不会把这部分发送给任何服务器，所以我们收不到，但拿到链接的人都能看到这些行程。请只分享给信任的人。',
       '激活 Pro 授权密钥时，密钥会发送到我们的服务器和支付服务商，仅用于验证其是否有效，不发送其他内容。付款由该服务商按其隐私政策处理。',
@@ -100,6 +104,7 @@ module.exports = {
     privH: 'Privacidad', termsH: 'Términos',
     priv: [
       'Los viajes que introduces se guardan en el navegador de tu dispositivo (almacenamiento local). No se envían a nosotros ni a nadie, salvo que actives la copia opcional en la nube: si inicias sesión con correo y contraseña, se guarda una copia de tus viajes (sin la clave de licencia) en nuestro proveedor de base de datos, Supabase, para que puedas usarla en otro dispositivo. Puedes cerrar sesión cuando quieras. Sin iniciar sesión no hace falta cuenta; Stayline no usa cookies ni analítica y nunca pide tu ubicación.',
+      'La explicación con IA es opcional. Si añades tu propia clave de API de Anthropic y pides una explicación, la regla del contador, los días de estancia, las fechas y los nombres de lugar de los viajes próximos se envían desde tu navegador directamente a api.anthropic.com. La clave se queda en tu dispositivo y no se envía nada hasta que pulsas el botón.',
       'Si borras los datos del sitio en tu navegador, se borran tus viajes. Usa la copia de seguridad de la app para conservar una.',
       'Enlace para compartir (opcional): al crear un enlace de solo lectura, tus viajes (sin notas) van en la parte del enlace después de #. Los navegadores no envían esa parte a ningún servidor, así que no la recibimos, pero cualquiera con el enlace puede ver esos viajes. Compártelo solo con personas de confianza.',
       'Al activar una clave de licencia Pro, la clave se envía a nuestro servidor y al proveedor de pagos solo para comprobar que es válida. No se envía nada más. El proveedor procesa los pagos según su propia política de privacidad.',

@@ -132,3 +132,4 @@ button,.tab,.ovrow,.trips li{transition:background-color .15s ease,border-color 
 .ovrow>span{min-width:0;overflow-wrap:anywhere}
 .ovrow .chip{flex-shrink:0}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+.aiKey{margin-top:10px}.aiKey summary{cursor:pointer;color:var(--mute)}.aiKey input{width:100%;margin:8px 0;padding:9px 10px;font:inherit;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:inherit;box-sizing:border-box}.aiSteps{margin:4px 0 10px;padding-left:20px}.aiText p{overflow-wrap:anywhere}
