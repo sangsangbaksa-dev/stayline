@@ -400,7 +400,7 @@
   }
   function addTrip(tr, trip) {
     if (!validTrip(trip)) return false;
-    tr.trips.push({ id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), place: oneLine(trip.place, 60), from: trip.from, to: trip.to || '', note: cleanNote(trip.note) });
+    tr.trips.push({ id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), place: oneLine(trip.place, 60), from: trip.from, to: trip.to || '', note: cleanNote(trip.note), holiday: trip.holiday === true, remindOn: validDate(trip.remindOn) ? trip.remindOn : '', remindText: cleanNote(trip.remindText) });
     tr.trips.sort(function (a, b) { return a.from < b.from ? 1 : a.from > b.from ? -1 : 0; });
     return true;
   }
@@ -411,6 +411,9 @@
     if (!validTrip(next)) return false;
     t.place = oneLine(next.place, 60); t.from = next.from; t.to = next.to;
     if (patch.note != null) t.note = cleanNote(patch.note);
+    if (patch.holiday !== undefined) t.holiday = patch.holiday === true;
+    if (patch.remindOn !== undefined) t.remindOn = validDate(patch.remindOn) ? patch.remindOn : '';
+    if (patch.remindText !== undefined) t.remindText = cleanNote(patch.remindText);
     tr.trips.sort(function (a, b) { return a.from < b.from ? 1 : a.from > b.from ? -1 : 0; });
     return true;
   }
@@ -441,7 +444,7 @@
       if (!t || typeof t !== 'object') return;
       var tr = { id: String(t.id || 'k' + out.length).slice(0, 40), name: oneLine(t.name, 40), rule: cleanRule(t.rule), expires: validDate(t.expires) ? t.expires : '', buffer: cleanBuffer(t.buffer), trips: [] };
       (Array.isArray(t.trips) ? t.trips : []).slice(0, 2000).forEach(function (x, i) {
-        if (x && validTrip(x)) tr.trips.push({ id: String(x.id || 't' + i).slice(0, 40), place: oneLine(x.place, 60), from: x.from, to: x.to || '', note: cleanNote(x.note) });
+        if (x && validTrip(x)) tr.trips.push({ id: String(x.id || 't' + i).slice(0, 40), place: oneLine(x.place, 60), from: x.from, to: x.to || '', note: cleanNote(x.note), holiday: x.holiday === true, remindOn: validDate(x.remindOn) ? x.remindOn : '', remindText: cleanNote(x.remindText) });
       });
       tr.trips.sort(function (a, b) { return a.from < b.from ? 1 : a.from > b.from ? -1 : 0; });
       tr.drafts = [];
@@ -586,10 +589,115 @@
       var key = ln.slice(0, i), val = ln.slice(i + 1), head = key.split(';')[0];
       if (head === 'DTSTART') { cur.start = day(val); cur.allDay = /VALUE=DATE(?!-TIME)/.test(key) || /^\d{8}$/.test(val); }
       else if (head === 'DTEND') cur.end = day(val);
-      else if (head === 'SUMMARY') cur.summary = val.replace(/\\,/g, ',').replace(/\;/g, ';').replace(/\\n/gi, ' ');
+      else if (head === 'SUMMARY') cur.summary = val.replace(/\\(.)/g, function (m, c) { return /n/i.test(c) ? ' ' : c; });
     });
     return out.slice(0, 500);
   }
+  /* RFC 4180-style CSV reader: quoted cells, doubled quotes, CRLF or LF. Returns rows of cells. */
+  function csvRows(text) {
+    var rows = [], row = [], cell = '', q = false, s = String(text || '').replace(/^﻿/, '');
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (q) {
+        if (ch === '"') { if (s.charAt(i + 1) === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && s.charAt(i + 1) === '\n') i++;
+        row.push(cell); rows.push(row); row = []; cell = '';
+      } else cell += ch;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+  /* CSV -> trips for the current counter. Needs a header row with `from` and `to` (matched ignoring case; `place` is optional),
+     so the file toCsv writes can be read back. Empty `to` = still there. A leading apostrophe before a formula character
+     (toCsv's guard) is removed. Returns { trips, bad } like parseTrips; `bad` holds approximate line numbers
+     (header is line 1; blank lines are skipped, so after one they can drift). */
+  function parseCsvTrips(text) {
+    var rows = csvRows(text).filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); });
+    var out = { trips: [], bad: [] };
+    if (rows.length < 2) return out;
+    var head = rows[0].map(function (c) { return String(c).trim().toLowerCase(); });
+    var iF = head.indexOf('from'), iT = head.indexOf('to'), iP = head.indexOf('place');
+    if (iF < 0 || iT < 0) return out;
+    /* cells are kept as typed: a leading apostrophe is not removed (csvCell only adds one before = + - @ tab CR on export) */
+    function cellOf(r, k) { return k < 0 || r[k] == null ? '' : String(r[k]).trim(); }
+    /* spreadsheets often write 2026/6/1 or 2026.6.1: pad those to YYYY-MM-DD before checking */
+    function dateOf(r, k) {
+      var v = cellOf(r, k), m = /^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(v);
+      return m ? m[1] + '-' + (m[2].length < 2 ? '0' : '') + m[2] + '-' + (m[3].length < 2 ? '0' : '') + m[3] : v;
+    }
+    rows.slice(1, 501).forEach(function (r, i) {
+      var t = { place: oneLine(cellOf(r, iP), 60), from: dateOf(r, iF), to: dateOf(r, iT) };
+      if (!validTrip(t)) { out.bad.push(i + 2); return; }
+      out.trips.push(t);
+    });
+    out.capped = Math.max(0, rows.length - 501);
+    return out;
+  }
+
+  /* same trip = same first and last day and same place (ignoring case and spaces). Splits incoming trips into new ones and duplicates
+     (duplicates of existing trips or of earlier incoming rows). */
+  function sameTrip(a, b) {
+    return a.from === b.from && (a.to || '') === (b.to || '') && String(a.place || '').trim().toLowerCase() === String(b.place || '').trim().toLowerCase();
+  }
+  function newTrips(existing, incoming) {
+    var fresh = [], dupes = 0;
+    (incoming || []).forEach(function (t) {
+      if ((existing || []).some(function (x) { return sameTrip(x, t); }) || fresh.some(function (x) { return sameTrip(x, t); })) dupes++;
+      else fresh.push(t);
+    });
+    return { fresh: fresh, dupes: dupes };
+  }
+  /* what if the current stay ends on `date`: days inside and days left that day. Ongoing trips run to `date`;
+     trips that start after it are dropped; planned trips are cut at `date`. Returns null for a bad date. */
+  function leaveOn(tr, date, today) {
+    today = today || todayStr();
+    if (!validDate(date)) return null;
+    var rule = cleanRule(tr.rule), x = dn(date);
+    var trips = (tr.trips || []).filter(function (t) { return !isNaN(dn(t.from)) && dn(t.from) <= x; }).map(function (t) {
+      return { from: t.from, to: t.to && !isNaN(dn(t.to)) ? str(Math.min(dn(t.to), x)) : date };
+    });
+    var used = usedOn(stayDays(trips, today), rule, x), left = rule.limit - used;
+    return { date: date, used: used, left: left, limit: rule.limit, state: left < 0 ? 'over' : left <= Math.max(5, Math.round(rule.limit * 0.15)) ? 'tight' : 'ok' };
+  }
+  /* weeks (Monday to Sunday) of the current calendar year, up to and including `today`: days inside per week, from the week containing 1 January */
+  function weeklyYear(tr, today) {
+    today = today || todayStr();
+    var t = dn(today), y = new Date(t * 86400000).getUTCFullYear(), jan1 = Date.UTC(y, 0, 1) / 86400000;
+    var set = stayDays(tr.trips, today), out = [];
+    for (var w = jan1 - ((new Date(jan1 * 86400000).getUTCDay() + 6) % 7); w <= t; w += 7) {
+      var n = 0;
+      for (var d = w; d < w + 7; d++) if (d >= jan1 && d <= t && set[d]) n++;
+      out.push({ start: str(w), days: n });
+    }
+    return out;
+  }
+  /* plain-language wording for a rule: { key, vars } for T(key, vars) */
+  function explainRule(rule) {
+    var r = cleanRule(rule);
+    if (r.kind === 'year') return r.limit === 183 ? { key: 'explain_tax183', vars: {} } : { key: 'explain_year', vars: { l: r.limit } };
+    if (r.limit === 90 && r.window === 180) return { key: 'explain_schengen', vars: {} };
+    if (r.limit === 180 && r.window === 365) return { key: 'explain_visitor180', vars: {} };
+    return { key: 'explain_rolling', vars: { l: r.limit, w: r.window } };
+  }
+  /* trip reminders across counters: a reminder date from today to `days` ahead, soonest first */
+  function reminders(trackers, today, days) {
+    today = today || todayStr(); days = days == null ? 30 : days;
+    var t = dn(today), out = [];
+    (trackers || []).forEach(function (tr) {
+      (tr.trips || []).forEach(function (x) {
+        if (!x.remindOn || !validDate(x.remindOn)) return;
+        var n = dn(x.remindOn) - t;
+        if (n < 0 || n > days) return;
+        out.push({ id: tr.id, name: tr.name || '', trip: x.id, place: x.place || '', on: x.remindOn, text: x.remindText || '', in: n });
+      });
+    });
+    return out.sort(function (a, b) { return a.in - b.in; });
+  }
+
   /* counters whose permit or visa ends within `days` days, or ended up to 30 days ago. Soonest first. */
   function permitWatch(trackers, today, days) {
     today = today || todayStr(); days = days == null ? 90 : days;
@@ -623,7 +731,7 @@
     oneLine: oneLine, parseIcs: parseIcs, permitWatch: permitWatch, yearReport: yearReport,
     PRESETS: PRESETS, dn: dn, str: str, todayStr: todayStr, addDays: addDays, validDate: validDate, cleanRule: cleanRule,
     stayDays: stayDays, usedOn: usedOn, summary: summary, maxStay: maxStay, lastDay: lastDay, earliestEntry: earliestEntry, strip: strip,
-    validDraft: validDraft, simulate: simulate, addDraft: addDraft, removeDraft: removeDraft, commitDrafts: commitDrafts, forecast: forecast, groupMaxStay: groupMaxStay, groupEarliest: groupEarliest, monthlyUsage: monthlyUsage, placeStats: placeStats, autoItinerary: autoItinerary, calendarMonth: calendarMonth, addMonth: addMonth, audit: audit, urgent: urgent, itineraryText: itineraryText, arrivalWindows: arrivalWindows, parseTrips: parseTrips, alerts: alerts, alertsIcs: alertsIcs,
+    validDraft: validDraft, simulate: simulate, addDraft: addDraft, removeDraft: removeDraft, commitDrafts: commitDrafts, forecast: forecast, groupMaxStay: groupMaxStay, groupEarliest: groupEarliest, monthlyUsage: monthlyUsage, placeStats: placeStats, autoItinerary: autoItinerary, calendarMonth: calendarMonth, addMonth: addMonth, audit: audit, urgent: urgent, itineraryText: itineraryText, arrivalWindows: arrivalWindows, parseTrips: parseTrips, parseCsvTrips: parseCsvTrips, leaveOn: leaveOn, newTrips: newTrips, weeklyYear: weeklyYear, explainRule: explainRule, reminders: reminders, alerts: alerts, alertsIcs: alertsIcs,
     compareRules: compareRules, yearStats: yearStats, encodeShare: encodeShare, decodeShare: decodeShare, safeLastDay: safeLastDay, borderSheet: borderSheet, cleanBuffer: cleanBuffer, cleanNote: cleanNote, validTrip: validTrip, addTrip: addTrip, updateTrip: updateTrip, sanitize: sanitize, removeTrip: removeTrip, toCsv: toCsv, toIcs: toIcs, csvCell: csvCell, makeKey: makeKey, validKey: validKey
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.SL = API;
