@@ -479,6 +479,68 @@ test('ics import: all-day end is exclusive, timed events use their date, commas 
   assert.deepEqual(C.parseIcs(ics), [{ place: 'Lisbon', from: '2026-03-01', to: '2026-03-04' }, { place: 'Day, trip', from: '2026-03-10', to: '' }, { place: 'Broken', from: '2026-04-01', to: '' }]);
   assert.deepEqual(C.parseIcs('not a calendar'), []);
 });
+test('csv import: reads back what toCsv writes (quotes, formula guard, ongoing trip)', () => {
+  const t = tr([['2026-06-01', '2026-06-03'], ['2026-07-01', '']]); t.name = 'A,B';
+  t.trips[0].place = '=Rome "old" town'; t.trips[1].place = 'Lisbon';
+  const back = C.parseCsvTrips('﻿' + C.toCsv([t], '2026-07-05'));
+  assert.deepEqual(back.bad, []);
+  assert.deepEqual(back.trips, [{ place: 'Lisbon', from: '2026-07-01', to: '' }, { place: "'=Rome \"old\" town", from: '2026-06-01', to: '2026-06-03' }]);
+  assert.deepEqual(C.parseCsvTrips("from,to,place\n2026-01-01,2026-01-02,'=x\n").trips, [{ place: "'=x", from: '2026-01-01', to: '2026-01-02' }]);
+  const bad = C.parseCsvTrips('place,from,to\r\nParis,2026-02-01,2026-02-03\r\nBad,2026-13-01,\r\nBackwards,2026-05-02,2026-05-01\r\n');
+  assert.deepEqual(bad.trips, [{ place: 'Paris', from: '2026-02-01', to: '2026-02-03' }]);
+  assert.deepEqual(bad.bad, [3, 4]);
+  assert.deepEqual(C.parseCsvTrips('a,b\n1,2').trips, []);
+  assert.deepEqual(C.parseCsvTrips('').trips, []);
+});
+test('leaveOn: days left on a chosen day; an ongoing stay runs to that day; later trips are dropped', () => {
+  const t = tr([['2026-01-01', '2026-01-10']]);
+  assert.deepEqual(C.leaveOn(t, '2026-01-05', '2026-06-01'), { date: '2026-01-05', used: 5, left: 85, limit: 90, state: 'ok' });
+  assert.equal(C.leaveOn(t, '2026-01-10', '2026-06-01').left, 80);
+  assert.equal(C.leaveOn(t, 'bad', '2026-06-01'), null);
+  assert.equal(C.leaveOn(tr([['2026-06-01', '']]), '2026-06-15', '2026-06-10').used, 15);
+  assert.equal(C.leaveOn(tr([['2026-03-01', '2026-03-05']]), '2026-02-01', '2026-06-01').used, 0);
+});
+test('weeklyYear: Monday-to-Sunday weeks add up to the year total, up to today', () => {
+  const t = tr([['2026-01-01', '2026-01-03'], ['2026-03-10', '2026-03-12']]);
+  const wk = C.weeklyYear(t, '2026-03-15');
+  assert.equal(wk[0].start, '2025-12-29'); assert.equal(wk[wk.length - 1].start, '2026-03-09');
+  const sum = wk.reduce((a, w) => a + w.days, 0);
+  assert.equal(sum, 6); assert.equal(sum, C.yearStats(t, '2026-03-15').years.find(y => y.year === 2026).days);
+});
+test('explainRule picks the plain-language wording for each rule', () => {
+  assert.equal(C.explainRule(C.PRESETS.schengen).key, 'explain_schengen');
+  assert.equal(C.explainRule(C.PRESETS.visitor180).key, 'explain_visitor180');
+  assert.equal(C.explainRule(C.PRESETS.tax183).key, 'explain_tax183');
+  assert.deepEqual(C.explainRule({ kind: 'rolling', limit: 30, window: 60 }), { key: 'explain_rolling', vars: { l: 30, w: 60 } });
+  assert.deepEqual(C.explainRule({ kind: 'year', limit: 100 }), { key: 'explain_year', vars: { l: 100 } });
+});
+test('csv import: loose dates are padded, bad rows reported, duplicates split out, row cap counted', () => {
+  const got = C.parseCsvTrips('from,to,place\n2026/6/1,2026.6.3,Rome\n2026-06-01,2026-06-03,Rome\n2026-02-30,,Bad\n');
+  assert.deepEqual(got.trips.map(x => x.from + '>' + x.to), ['2026-06-01>2026-06-03', '2026-06-01>2026-06-03']);
+  assert.deepEqual(got.bad, [4]);
+  const d = C.newTrips([{ from: '2026-06-01', to: '2026-06-03', place: 'rome' }], got.trips);
+  assert.equal(d.fresh.length, 0); assert.equal(d.dupes, 2);
+  const again = C.newTrips([], got.trips);
+  assert.equal(again.fresh.length, 1); assert.equal(again.dupes, 1);
+  const big = 'from,to\n' + Array.from({ length: 503 }, () => '2026-01-01,2026-01-01').join('\n');
+  const cap = C.parseCsvTrips(big);
+  assert.equal(cap.trips.length, 500); assert.equal(cap.capped, 3);
+});
+test('reminders: due within 30 days, soonest first; holiday flag and notes survive add, edit and sanitize', () => {
+  const a = { id: 'a', name: 'Me', rule: C.PRESETS.schengen, trips: [
+    { id: 'x', place: 'Rome', from: '2026-08-01', to: '2026-08-05', remindOn: '2026-06-20', remindText: 'book train', holiday: true },
+    { id: 'y', place: 'Oslo', from: '2026-09-01', to: '', remindOn: '2026-06-01' }] };
+  const r = C.reminders([a], '2026-06-10', 30);
+  assert.deepEqual(r.map(x => x.trip), ['x']); assert.equal(r[0].in, 10); assert.equal(r[0].text, 'book train');
+  const s = C.sanitize([{ id: 'a', rule: C.PRESETS.schengen, trips: [{ id: 'x', from: '2026-08-01', to: '2026-08-05', remindOn: 'bad', holiday: true, remindText: 'ok' }] }]);
+  assert.equal(s[0].trips[0].holiday, true); assert.equal(s[0].trips[0].remindOn, ''); assert.equal(s[0].trips[0].remindText, 'ok');
+  assert.equal(C.addTrip(a, { from: '2026-07-01', to: '', holiday: true, remindOn: '2026-07-02', remindText: 'x' }), true);
+  const added = a.trips.find(x => x.from === '2026-07-01');
+  assert.equal(added.holiday, true); assert.equal(added.remindOn, '2026-07-02');
+  assert.equal(C.updateTrip(a, added.id, { from: '2026-07-01', to: '', holiday: false, remindOn: '' }), true);
+  assert.equal(added.holiday, false); assert.equal(added.remindOn, '');
+});
+
 test('permit watch: within 90 days or ended in the last 30, soonest first', () => {
   const list = [{ id: 'a', name: 'A', expires: '2026-12-01' }, { id: 'b', name: 'B', expires: '2026-10-20' }, { id: 'c', name: 'C', expires: '2027-06-01' }, { id: 'd', name: 'D' }];
   const w = C.permitWatch(list, '2026-11-03', 90);

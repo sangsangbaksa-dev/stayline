@@ -8,7 +8,8 @@
     try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.trackers)) { s.trackers = C.sanitize(s.trackers); return s; } } catch (e) {}
     return { v: 1, trackers: [], active: '', pro: false, lang: '' };
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} if (cloud) cloud.changed(); }
+  /* a failed write (storage full, blocked) used to lose data silently: say so, so the user can back up */
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast(T('saveFail')); } if (cloud) cloud.changed(); }
 
   /* Optional cloud sync (Supabase). Off unless config.js has a project URL and key. Licence fields stay on this device. */
   var LOCAL_ONLY = ['theme', 'pro', 'key', 'licMode', 'instanceId', 'licChecked', 'lang'];
@@ -57,8 +58,9 @@
     return state.trackers.filter(function (t) { return t.id === state.active; })[0] || state.trackers[0] || null;
   }
   function download(name, text, type) {
-    var a = h('a', { href: URL.createObjectURL(new Blob([type === 'text/csv' ? '\uFEFF' + text : text], { type: type })), download: name });
+    var url = URL.createObjectURL(new Blob([type === 'text/csv' ? '\uFEFF' + text : text], { type: type })), a = h('a', { href: url, download: name });
     document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
   /* Pro key check. If the server function is configured it decides; if it is absent (404) or not configured,
      fall back to the built-in offline check. A network failure never unlocks anything. */
@@ -72,6 +74,23 @@
   function legal(page) { return (lang === 'en' ? '/' : '/' + lang + '/') + page; }
   function needPro() { if (state.pro) return false; toast(T('proOnly')); return true; }
 
+  /* SVG progress ring for the status card: share of the limit used, drawn in the board's state colour */
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function ring(used, limit, state) {
+    var r = 15, c = 2 * Math.PI * r, pct = limit > 0 ? Math.min(1, Math.max(0, used / limit)) : 0;
+    var svg = svgEl('svg', { viewBox: '0 0 36 36', width: 76, height: 76, class: 'ring st-' + state, role: 'img', 'aria-label': T('usedOf', { u: used, l: limit }), focusable: 'false' });
+    svg.appendChild(svgEl('circle', { cx: 18, cy: 18, r: r, class: 'ring-bg', fill: 'none', 'stroke-width': 3.2 }));
+    svg.appendChild(svgEl('circle', { cx: 18, cy: 18, r: r, class: 'ring-fg', fill: 'none', 'stroke-width': 3.2, 'stroke-linecap': 'round', 'stroke-dasharray': (pct * c).toFixed(2) + ' ' + c.toFixed(2), transform: 'rotate(-90 18 18)' }));
+    var tx = svgEl('text', { x: 18, y: 19.6, 'text-anchor': 'middle', class: 'ring-txt' });
+    tx.textContent = Math.round(pct * 100) + '%';
+    svg.appendChild(tx);
+    return svg;
+  }
+  function explainText(rule) { var e = C.explainRule(rule); return T(e.key, e.vars); }
   function leftText(n) {
     if (n >= 0) return n === 1 ? T('dayLeft') : T('daysLeft', { n: n });
     return n === -1 ? T('dayOver') : T('daysOver', { n: -n });
@@ -102,7 +121,8 @@
     return h('section', { class: 'board st-' + s.state }, [
       h('div', { class: 'flap', 'aria-live': 'polite' }, [
         h('div', { class: 'digits' }, String(big).split('').map(function (d) { return h('b', null, d); })),
-        h('div', { class: 'unit' }, T(s.left < 0 ? 'unitOver' : 'unitLeft'))
+        h('div', { class: 'unit' }, T(s.left < 0 ? 'unitOver' : 'unitLeft')),
+        ring(s.used, s.rule.limit, s.state)
       ]),
       h('div', { class: 'line' }, [h('span', { class: 'chip' }, T('s_' + s.state)), h('span', null, T('usedOf', { u: s.used, l: s.rule.limit }))]),
       strip,
@@ -133,12 +153,13 @@
   }
 
   function planner(tr) {
-    var start = plan.arrive || C.addDays(C.todayStr(), 1), n = plan.nights || 14, rule = C.cleanRule(tr.rule);
+    /* a cleared field is stored as '' or 0; keep it empty instead of snapping back on the next render */
+    var start = plan.arrive != null ? plan.arrive : C.addDays(C.todayStr(), 1), n = plan.nights != null ? plan.nights : 14, rule = C.cleanRule(tr.rule);
     var out = h('p', { class: 'plan-out', id: 'plan-out', role: 'status' }), win = h('div', { class: 'wins' });
     function calc() {
       var a = document.getElementById('p-arrive').value, d = +document.getElementById('p-days').value;
       plan = { arrive: a, nights: d };
-      if (!C.validDate(a) || !(d >= 1)) { out.textContent = ''; return; }
+      if (!C.validDate(a) || !(d >= 1)) { out.textContent = ''; win.replaceChildren(); return; }
       var max = C.maxStay(tr, a, C.todayStr()), msg;
       if (d > rule.limit) msg = T('planNoEarly', { n: d });
       else {
@@ -166,6 +187,38 @@
     return wrap;
   }
 
+  /* what if I leave on a date: days left that day, if the current stay ends then */
+  function leaveCard(tr) {
+    var today = C.todayStr(), out = h('p', { class: 'plan-out', id: 'lv-out', role: 'status' });
+    var inp = h('input', { type: 'date', id: 'lv-date', value: C.addDays(today, 30) });
+    function calc() {
+      var r = C.leaveOn(tr, inp.value, today);
+      out.textContent = r ? T('leaveRes', { date: fmt(r.date), t: leftText(r.left) }) : '';
+    }
+    inp.addEventListener('input', calc);
+    calc();
+    return h('section', { class: 'card' }, [h('h2', null, T('leaveH')), h('label', null, [T('leaveDate'), inp]), out]);
+  }
+  /* days inside per week (Monday to Sunday) so far this year */
+  function weeklyCard(tr) {
+    var wk = C.weeklyYear(tr, C.todayStr());
+    var bars = h('div', { class: 'fc weeks', role: 'img', 'aria-label': T('wkH') }, wk.map(function (x) {
+      return h('i', { title: T('wkTip', { date: fmt(x.start), n: x.days }), style: 'height:' + Math.max(2, Math.round(Math.min(7, x.days) / 7 * 100)) + '%' });
+    }));
+    return h('section', { class: 'card' }, [h('h2', null, T('wkH')), bars, h('p', { class: 'muted small' }, T('wkCap'))]);
+  }
+  /* upcoming trip reminders across all counters (next 30 days) */
+  function reminderCard() {
+    var items = C.reminders(state.trackers, C.todayStr(), 30);
+    if (!items.length) return null;
+    return h('section', { class: 'card', 'aria-labelledby': 'rem-h' }, [h('h2', { id: 'rem-h' }, T('remH')),
+      h('ul', { class: 'alerts' }, items.map(function (x) {
+        return h('li', null, [
+          h('span', null, [h('button', { class: 'ghost small', onclick: function () { state.active = x.id; plan = {}; save(); render(); } }, x.name || T('namePh')), ' ', (x.place || '—') + (x.text ? ' · ' + x.text : '')]),
+          h('span', { class: 'dates' }, fmt(x.on) + ' · ' + rel(x.in))
+        ]);
+      }))]);
+  }
   function rel(n) { return n === 0 ? T('todayWord') : n === 1 ? T('inDay') : T('inDays', { n: n }); }
   function banner() {
     var list = C.urgent(state.trackers, C.todayStr());
@@ -234,7 +287,7 @@
   }
 
   function groupCard() {
-    var start = plan.garrive || C.addDays(C.todayStr(), 1), n = plan.gnights || 14, all = state.trackers;
+    var start = plan.garrive != null ? plan.garrive : C.addDays(C.todayStr(), 1), n = plan.gnights != null ? plan.gnights : 14, all = state.trackers;
     var out = h('div', { class: 'plan-out', id: 'g-out', role: 'status' });
     function calc() {
       var a = document.getElementById('g-arrive').value, d = +document.getElementById('g-days').value;
@@ -268,7 +321,8 @@
     return h('section', { class: 'card' }, [
       h('div', { class: 'rowhead' }, [h('h2', null, T('calH') + ' · ' + label), h('span', { class: 'rowbtns' }, [
         h('button', { class: 'ghost small', 'aria-label': T('calPrev'), onclick: function () { calMonth = C.addMonth(ym, -1); render(); } }, '‹'),
-        h('button', { class: 'ghost small', 'aria-label': T('calNext'), onclick: function () { calMonth = C.addMonth(ym, 1); render(); } }, '›')])]),
+        h('button', { class: 'ghost small', 'aria-label': T('calNext'), onclick: function () { calMonth = C.addMonth(ym, 1); render(); } }, '›'),
+        calMonth && calMonth !== C.todayStr().slice(0, 7) ? h('button', { class: 'ghost small', onclick: function () { calMonth = ''; render(); } }, T('today')) : null])]),
       h('div', { class: 'cal' }, heads.concat(cells)), h('p', { class: 'muted small' }, T('calLegend'))]);
   }
   function auditCard(tr) {
@@ -331,10 +385,13 @@
           h('strong', null, t.place || '—'),
           h('span', { class: 'dates' }, fmt(t.from) + ' → ' + (t.to ? fmt(t.to) : T('today')) + ' · ' + days),
           t.from > C.todayStr() ? h('span', { class: 'chip plan' }, T('planned')) : null,
+          t.holiday ? h('span', { class: 'chip plan' }, T('holidayChip')) : null,
+          t.remindOn ? h('span', { class: 'dates note' }, fmt(t.remindOn) + (t.remindText ? ' · ' + t.remindText : '')) : null,
           t.note ? h('span', { class: 'dates note' }, t.note) : null
         ]),
         ro ? null : h('span', { class: 'rowbtns' }, [
-          !t.to ? h('button', { class: 'ghost', onclick: function () { t.to = C.todayStr(); save(); render(); } }, T('leftToday')) : null,
+          /* only a trip that has started can end today; a planned one would get an end before its start */
+          !t.to && t.from <= C.todayStr() ? h('button', { class: 'ghost', onclick: function () { t.to = C.todayStr(); save(); render(); } }, T('leftToday')) : null,
           h('button', { class: 'ghost', onclick: function () { editing = t.id; render(); } }, T('edit')),
           h('button', { class: 'ghost x', 'aria-label': T('confTrip'), onclick: function () { if (confirm(T('confTrip'))) undoable(T('tripGone'), function () { C.removeTrip(tr, t.id); save(); render(); }); } }, '×')
         ])
@@ -351,9 +408,12 @@
     var from = h('input', { type: 'date', id: 'f-from', required: '', value: cur ? cur.from : C.todayStr() });
     var to = h('input', { type: 'date', id: 'f-to', value: cur ? cur.to : '', disabled: cur && !cur.to ? '' : false });
     var on = h('input', { type: 'checkbox', id: 'f-on', checked: cur && !cur.to ? '' : false, onchange: function () { to.disabled = on.checked; if (on.checked) to.value = ''; } });
+    var hol = h('input', { type: 'checkbox', id: 'f-hol', checked: cur && cur.holiday ? '' : false });
+    var rd = h('input', { type: 'date', id: 'f-rdate', value: cur && cur.remindOn ? cur.remindOn : '' });
+    var rt = h('input', { id: 'f-rtext', maxlength: 120, value: cur ? cur.remindText || '' : '' });
     dlg.appendChild(h('form', { method: 'dialog', onsubmit: function (e) {
       e.preventDefault();
-      var data = { place: document.getElementById('f-place').value, note: document.getElementById('f-note').value, from: from.value, to: on.checked ? '' : to.value };
+      var data = { place: document.getElementById('f-place').value, note: document.getElementById('f-note').value, from: from.value, to: on.checked ? '' : to.value, holiday: hol.checked, remindOn: rd.value, remindText: rt.value };
       var ok = cur ? C.updateTrip(tr, cur.id, data) : C.addTrip(tr, data);
       if (!ok) { err.textContent = T('badTrip'); return; }
       adding = false; editing = ''; save(); render();
@@ -364,6 +424,9 @@
       h('label', null, [T('to'), to]),
       h('label', null, [T('noteL'), h('input', { id: 'f-note', maxlength: 120, value: cur ? cur.note || '' : '' })]),
       h('label', { class: 'chk' }, [on, T('ongoing')]),
+      h('label', { class: 'chk' }, [hol, T('holidayL')]),
+      h('label', null, [T('remindDateL'), rd]),
+      h('label', null, [T('remindTextL'), rt]),
       err,
       h('div', { class: 'row' }, [h('button', { type: 'button', class: 'ghost', onclick: function () { adding = false; editing = ''; render(); } }, T('cancel')), h('button', { type: 'submit', class: 'pri' }, T('save'))])
     ]));
@@ -392,20 +455,28 @@
     var limit = h('input', { type: 'number', id: 'f-limit', min: 1, max: 366, value: 90 });
     var win = h('input', { type: 'number', id: 'f-win', min: 1, max: 730, value: 180 });
     var custom = h('div', { class: 'grid2', hidden: '' }, [h('label', null, [T('limit'), limit]), h('label', { id: 'f-winl' }, [T('window'), win])]);
+    var expl = h('p', { class: 'fine', id: 'f-expl', role: 'status' });
+    function pickRule() {
+      var v = sel.value;
+      return v === 'schengen' ? C.PRESETS.schengen : v === 'visitor180' ? C.PRESETS.visitor180 : v === 'tax183' ? C.PRESETS.tax183
+        : v === 'custom' ? { kind: 'rolling', limit: limit.value, window: win.value } : { kind: 'year', limit: limit.value };
+    }
+    function showExpl() { expl.textContent = explainText(pickRule()); }
+    limit.addEventListener('input', showExpl); win.addEventListener('input', showExpl);
     function sync() {
       var v = sel.value; custom.hidden = v.indexOf('custom') !== 0;
       document.getElementById('f-winl').hidden = v !== 'custom';
+      showExpl();
     }
     dlg.appendChild(h('form', { method: 'dialog', onsubmit: function (e) {
       e.preventDefault();
-      var v = sel.value, rule = v === 'schengen' ? C.PRESETS.schengen : v === 'visitor180' ? C.PRESETS.visitor180 : v === 'tax183' ? C.PRESETS.tax183
-        : v === 'custom' ? { kind: 'rolling', limit: limit.value, window: win.value } : { kind: 'year', limit: limit.value };
+      var rule = pickRule();
       var t = { id: uid(), name: (document.getElementById('f-name').value || '').trim().slice(0, 40), rule: C.cleanRule(rule), expires: document.getElementById('f-exp').value || '', trips: [] };
       state.trackers.push(t); state.active = t.id; creating = false; save(); render();
     } }, [
       h('h2', { id: 'dlg-h' }, T('newTracker')),
       h('label', null, [T('trackerName'), h('input', { id: 'f-name', maxlength: 40, placeholder: T('namePh') })]),
-      h('label', null, [T('rule'), sel]), custom,
+      h('label', null, [T('rule'), sel]), custom, expl,
       h('label', null, [T('expires'), h('input', { type: 'date', id: 'f-exp' })]),
       h('div', { class: 'row' }, [h('button', { type: 'button', class: 'ghost', onclick: function () { creating = false; render(); } }, T('cancel')), h('button', { type: 'submit', class: 'pri' }, T('save'))])
     ]));
@@ -474,6 +545,7 @@
     return h('div', { class: 'empty' }, [
       h('div', { class: 'ghostflap' }, '90'),
       h('h2', null, T('emptyH')), h('p', null, T('emptyB')),
+      h('ol', { class: 'steps' }, [T('emptyStep1'), T('emptyStep2'), T('emptyStep3')].map(function (s) { return h('li', null, s); })),
       h('div', { class: 'row center' }, [h('button', { class: 'pri', onclick: quickStart }, T('quick')), h('button', { class: 'ghost', onclick: function () { creating = true; render(); } }, T('newTracker'))])]);
   }
 
@@ -496,7 +568,7 @@
   }
   function footer(tr) {
     var file = h('input', { type: 'file', accept: 'application/json', hidden: '', onchange: function () {
-      var f = file.files[0]; if (!f) return; var r = new FileReader();
+      var f = file.files[0]; file.value = ''; if (!f) return; var r = new FileReader();
       r.onload = function () {
         try { var s = JSON.parse(r.result); if (!s || !Array.isArray(s.trackers)) throw 0; state = { v: 1, trackers: C.sanitize(s.trackers), active: s.active || '', pro: state.pro, lang: state.lang, theme: state.theme, remind: state.remind, remindedOn: state.remindedOn }; save(); render(); toast(T('restored')); }
         catch (e) { toast(T('badFile')); }
@@ -504,11 +576,26 @@
       r.readAsText(f);
     } });
     var icsIn = h('input', { type: 'file', accept: '.ics,text/calendar', hidden: '', onchange: function () {
-      var f = icsIn.files[0]; if (!f || !tr) return; var r = new FileReader();
+      var f = icsIn.files[0]; icsIn.value = ''; if (!f || !tr) return; var r = new FileReader();
       r.onload = function () {
         var found = C.parseIcs(r.result);
         if (!found.length) { toast(T('icsNone')); return; }
         undoable(T('icsDone', { n: found.length }), function () { found.forEach(function (t) { C.addTrip(tr, t); }); save(); render(); });
+      };
+      r.readAsText(f);
+    } });
+    var csvIn = h('input', { type: 'file', accept: '.csv,text/csv', hidden: '', onchange: function () {
+      var f = csvIn.files[0]; csvIn.value = ''; if (!f || !tr) return; var r = new FileReader();
+      r.onload = function () {
+        var got = C.parseCsvTrips(r.result);
+        if (!got.trips.length) { toast(T('csvNone')); return; }
+        var add = C.newTrips(tr.trips, got.trips).fresh, dupes = got.trips.length - add.length, parts = [];
+        if (!add.length) { toast(T('csvDup', { n: dupes })); return; }
+        parts.push(T('csvDone', { n: add.length }));
+        if (dupes) parts.push(T('csvDup', { n: dupes }));
+        if (got.capped) parts.push(T('csvCapped', { n: got.capped }));
+        if (got.bad.length) parts.push(T('pasteBad', { lines: got.bad.slice(0, 8).join(', ') }));
+        undoable(parts.join(' '), function () { add.forEach(function (t) { C.addTrip(tr, t); }); save(); render(); });
       };
       r.readAsText(f);
     } });
@@ -518,6 +605,7 @@
         h('button', { class: 'ghost', onclick: function () { download('stayline-backup.json', JSON.stringify({ v: 1, trackers: state.trackers, active: state.active }), 'application/json'); toast(T('backupDone')); } }, T('exp')),
         h('button', { class: 'ghost', onclick: function () { file.click(); } }, T('imp')), file,
         tr ? h('button', { class: 'ghost', onclick: function () { icsIn.click(); } }, T('icsImport')) : null, icsIn,
+        tr ? h('button', { class: 'ghost', onclick: function () { csvIn.click(); } }, T('csvImport')) : null, csvIn,
         state.trackers.length ? h('button', { class: 'ghost', onclick: function () { download('stayline-report.md', C.yearReport(state.trackers, C.todayStr()), 'text/markdown'); } }, T('report')) : null,
         h('button', { class: 'ghost', onclick: function () { if (needPro()) return; download('stayline.csv', C.toCsv(state.trackers, C.todayStr()), 'text/csv'); } }, T('csv')),
         h('button', { class: 'ghost', onclick: function () { download('stayline.ics', C.toIcs(state.trackers, C.todayStr()), 'text/calendar'); } }, T('ics')),
@@ -558,7 +646,7 @@
     return h('section', { class: 'card' }, [h('h2', null, T('rulesH')), h('p', { class: 'muted' }, T('rulesHint')),
       h('ul', { class: 'rulelist' }, rows.map(function (r) {
         return h('li', null, [
-          h('span', null, [h('strong', null, T('rule_' + (r.key === 'own' ? 'own' : r.key) + '_s')), r.own ? h('span', { class: 'dates' }, T('rulesOwn')) : null, h('span', { class: 'dates' }, T('usedOf', { u: r.used, l: r.rule.limit }))]),
+          h('span', null, [h('strong', null, T('rule_' + (r.key === 'own' ? 'own' : r.key) + '_s')), r.own ? h('span', { class: 'dates' }, T('rulesOwn')) : null, h('span', { class: 'dates' }, T('usedOf', { u: r.used, l: r.rule.limit })), h('span', { class: 'dates' }, explainText(r.rule))]),
           h('span', { class: 'chip st-' + r.state }, leftText(r.left))]);
       }))]);
   }
@@ -581,6 +669,7 @@
   function applyTheme() { var mt = document.querySelector('meta[name=theme-color]'), lt = state.theme === 'light' || (!state.theme && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches); if (mt) mt.setAttribute('content', lt ? '#f6f3ec' : '#14171a'); var th = state.theme === 'light' || state.theme === 'dark' ? state.theme : ''; if (th) document.documentElement.setAttribute('data-theme', th); else document.documentElement.removeAttribute('data-theme'); }
   if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () { applyTheme(); }); } catch (e) {} }
   function render() {
+    var fid = document.activeElement && document.activeElement.id;
     applyTheme();
     document.documentElement.lang = lang; document.title = T('app');
     if (shared) { sharedView(shared); return; }
@@ -590,11 +679,12 @@
     else {
       var bn = banner(); if (bn) kids.push(bn);
       var pc = permitCard(); if (pc) kids.push(pc);
+      var rc = reminderCard(); if (rc) kids.push(rc);
       kids.push(tabs());
       if (state.trackers.length > 1) kids.push(overview());
-      kids.push(board(tr), keyDates(tr), planner(tr), itinerary(tr), rulesCard(tr));
+      kids.push(board(tr), leaveCard(tr), keyDates(tr), planner(tr), itinerary(tr), rulesCard(tr));
       if (state.trackers.length > 1) kids.push(groupCard());
-      kids.push(calendarCard(tr), forecastCard(tr), monthCard(tr), placesCard(tr), statsCard(tr), auditCard(tr), borderCard(tr), tripList(tr));
+      kids.push(calendarCard(tr), forecastCard(tr), monthCard(tr), weeklyCard(tr), placesCard(tr), statsCard(tr), auditCard(tr), borderCard(tr), tripList(tr));
       var pr = h('div', { class: 'printonly' }, [h('h1', null, T('printTitle') + ' — ' + tr.name)]);
       kids.push(pr);
     }
@@ -604,6 +694,8 @@
     if (pasting && tr) { var d5 = pasteDialog(tr); root.appendChild(d5); d5.showModal(); }
     if (editCounter && tr) { var d3 = counterDialog(tr); root.appendChild(d3); d3.showModal(); }
     if (creating) { var d2 = trackerDialog(); root.appendChild(d2); d2.showModal(); }
+    /* re-rendering drops keyboard focus; put it back on the same input when it had an id */
+    if (fid) { var fe = document.getElementById(fid); if (fe && typeof fe.focus === 'function' && document.activeElement !== fe) fe.focus(); }
   }
   document.addEventListener('cancel', function () { adding = creating = editCounter = pasting = false; editing = ''; setTimeout(render, 0); }, true);
   render();

@@ -81,7 +81,7 @@ const ymd = d => d.toISOString().slice(0, 10), add = (n) => ymd(new Date(Date.no
   // custom rolling rule form shows window field
   await pg.click('.tab.add'); await pg.selectOption('#f-rule', 'custom'); assert.equal(await pg.locator('#f-winl').isVisible(), true); await pg.click('dialog .ghost');
   // csv + backup downloads
-  const [dl] = await Promise.all([pg.waitForEvent('download'), pg.click('.row button >> text=CSV')]); assert.equal(dl.suggestedFilename(), 'stayline.csv');
+  const [dl] = await Promise.all([pg.waitForEvent('download'), pg.click('.row button >> text="CSV"')]); assert.equal(dl.suggestedFilename(), 'stayline.csv');
   const [bk] = await Promise.all([pg.waitForEvent('download'), pg.click('text=Back up')]); const data = JSON.parse(fs.readFileSync(await bk.path(), 'utf8')); assert.equal(data.trackers.length, 2);
   // over-limit state
   await pg.click('.tab >> nth=0'); await pg.click('.rowhead .pri'); await pg.fill('#f-from', add(-100)); await pg.fill('#f-to', add(-50)); await pg.click('dialog button[type=submit]');
