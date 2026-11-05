@@ -46,3 +46,60 @@ html{scroll-behavior:smooth}
 @media(max-width:900px){.feats{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:720px){.feats{grid-template-columns:1fr}.top{position:static}.top .btn.small{order:2}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.flaps b{animation:none}.btn{transition:none}.btn:hover{transform:none}}
+
+/* ---------- site header nav, footer layout ---------- */
+.top{gap:10px 20px}
+.sitenav{display:flex;align-items:center;gap:4px 16px;flex-wrap:wrap;margin-right:auto}
+.sitenav a{color:var(--mute);text-decoration:none;font-size:.92rem;min-height:44px;display:inline-flex;align-items:center;padding:0 2px;border-bottom:2px solid transparent;transition:color .15s ease,border-color .15s ease}
+.sitenav a:hover{color:var(--ink);border-bottom-color:var(--amber)}
+.top .langs{margin-left:0}
+.top .btn.small{min-height:44px;display:inline-flex;align-items:center}
+.langs a{min-height:44px;display:inline-flex;align-items:center}
+footer .foot-in{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+footer .foot-brand p{margin:6px 0 0;max-width:34em;color:var(--mute)}
+footer .foot-brand .brand{font-size:1rem}
+footer .foot-meta{display:grid;gap:6px;color:var(--mute)}
+footer .foot-meta nav a{display:inline-flex;align-items:center;min-height:44px}
+footer .foot-meta p{margin:0}
+footer a{overflow-wrap:anywhere}
+@media(min-width:720px){footer .foot-in{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:start}footer .foot-meta{justify-items:end;text-align:right}}
+@media(max-width:900px){.sitenav{order:3;width:100%;margin-right:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:0 12px}.sitenav::-webkit-scrollbar{display:none}.sitenav a{flex:0 0 auto}.top .langs{order:4}}
+@media(prefers-reduced-motion:reduce){.sitenav a{transition:none}}
+
+/* ---------- direction pass: deep green primary, navy ink, serif display ---------- */
+:root{--primary:#0B6E4F;--primary-hover:#064D36;--navy:#0A1628;--surface:#F8FAFC;--surface-2:#EEF2F6;--serif:Georgia,"Times New Roman","Noto Serif KR","Noto Serif JP","Noto Serif SC",serif;--radius-card:20px}
+body{background:var(--surface);color:var(--navy)}
+.top,.hero,.endcta,footer{background:var(--navy)}
+.top{border-bottom-color:#1d2c44}
+.paper{background:var(--surface)}.paper.alt{background:var(--surface-2)}
+h1,h2,.price{font-family:var(--serif);font-weight:700;letter-spacing:-.01em}
+h1{font-size:clamp(2.1rem,5.6vw,3.3rem);line-height:1.12}
+h2{color:var(--navy)}
+.btn{background:var(--primary);border-color:var(--primary);color:#fff;border-radius:999px;padding:12px 24px;box-shadow:0 1px 2px rgba(10,22,40,.12)}
+.btn:hover{background:var(--primary-hover);border-color:var(--primary-hover);color:#fff;box-shadow:0 8px 20px rgba(11,110,79,.28)}
+.btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.55)}
+.btn.ghost:hover{background:rgba(255,255,255,.08);border-color:#fff;color:#fff;box-shadow:none}
+.btn:focus-visible,summary:focus-visible,select:focus-visible,a:focus-visible{outline-color:#fff}
+.paper a:focus-visible{outline-color:var(--navy)}
+.demo,.feats li,.plan,.trust li{border-radius:var(--radius-card)}
+.demo{border-color:#22324d;background:#111f36;box-shadow:0 18px 40px rgba(10,22,40,.25)}
+.feats li{background:#fff;border-color:#dbe3ec;box-shadow:0 1px 2px rgba(10,22,40,.05);transition:transform .2s ease,box-shadow .2s ease}
+.feats li:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(10,22,40,.1)}
+.feats{gap:18px}
+.plan{background:#fff;border-color:#dbe3ec;padding:28px}
+.plan.pro{background:var(--navy);border-color:var(--navy)}
+.plan.pro .btn{background:var(--primary)}
+.paper,.endcta{padding-block:72px}
+.steps li{border-top:3px solid var(--primary)}
+.steps li::before{color:var(--primary);font-family:var(--serif)}
+.trust li::before{color:#7fd3b0}
+.sitenav a:hover{border-bottom-color:#7fd3b0}
+.langs a[aria-current]{border-bottom-color:#7fd3b0}
+details{border-top-color:#c9d3df}
+.note{color:#9fb0c6}
+.lead{color:#c9d3df}
+.endcta p{color:#c9d3df}
+.top .btn.small{padding:9px 18px}
+@media(max-width:720px){.paper,.endcta{padding-block:52px}.feats li{border-radius:16px}}
+.endcta h2,.hero h1,.top .brand,footer .brand{color:#fff}
+.hero h1{color:#f4f1ea}

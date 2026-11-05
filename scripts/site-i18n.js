@@ -1,6 +1,8 @@
 /* Extra strings for the generated site: SEO meta, nav, legal pages. {email} is filled from config.js. */
 module.exports = {
   en: {
+    navLabel: 'Page sections',
+    navHow: 'How it works', navFeat: 'Features', navPrice: 'Pricing', navFaq: 'FAQ',
     metaTitle: 'Stayline: Schengen 90/180 day counter and stay-limit planner',
     metaDesc: 'Count the days you spent inside, see how many are left and the earliest day you can return. Schengen 90/180, 183-day tax rule or a custom limit. No account needed, no location tracking, one payment.',
     ogAlt: 'Stayline showing 62 days left on a Schengen 90/180 counter',
@@ -25,6 +27,8 @@ module.exports = {
     ]
   },
   ko: {
+    navLabel: '페이지 섹션',
+    navHow: '사용 방법', navFeat: '기능', navPrice: '가격', navFaq: '자주 묻는 질문',
     metaTitle: '스테이라인: 솅겐 90/180일 계산기와 체류 한도 플래너',
     metaDesc: '체류한 날을 세고 남은 일수와 다시 들어갈 수 있는 가장 빠른 날을 확인하세요. 솅겐 90/180, 183일 세법 기준, 직접 정한 한도. 계정 불필요, 위치 추적 없이 한 번 결제.',
     ogAlt: '솅겐 90/180 카운터에서 62일 남음을 보여 주는 스테이라인',
@@ -49,6 +53,8 @@ module.exports = {
     ]
   },
   ja: {
+    navLabel: 'ページ内の項目',
+    navHow: '使い方', navFeat: '機能', navPrice: '料金', navFaq: 'よくある質問',
     metaTitle: 'ステイライン：シェンゲン90/180日カウンターと滞在上限プランナー',
     metaDesc: '滞在した日数を数え、残り日数と最短の再入国日がわかります。シェンゲン90/180、183日の税務基準、自分で決めた上限に対応。アカウント不要・位置情報不要で買い切り。',
     ogAlt: 'シェンゲン90/180カウンターで残り62日を表示するステイライン',
@@ -73,6 +79,8 @@ module.exports = {
     ]
   },
   zh: {
+    navLabel: '页面导航',
+    navHow: '使用方法', navFeat: '功能', navPrice: '价格', navFaq: '常见问题',
     metaTitle: '停留线：申根90/180天计数器与停留上限规划',
     metaDesc: '统计你已停留的天数，查看剩余天数和最早可再次入境的日期。支持申根90/180、183天税务规则或自定义上限。无需账号、不追踪位置，一次付费。',
     ogAlt: '停留线在申根90/180计数器上显示还剩62天',
@@ -97,6 +105,8 @@ module.exports = {
     ]
   },
   es: {
+    navLabel: 'Secciones de la página',
+    navHow: 'Cómo funciona', navFeat: 'Funciones', navPrice: 'Precio', navFaq: 'Preguntas',
     metaTitle: 'Stayline: contador Schengen 90/180 y planificador de límites de estancia',
     metaDesc: 'Cuenta los días que pasaste dentro, mira cuántos te quedan y la primera fecha en que puedes volver. Schengen 90/180, 183 días fiscales o un límite propio. No hace falta cuenta, sin rastreo de ubicación, un solo pago.',
     ogAlt: 'Stayline mostrando 62 días restantes en un contador Schengen 90/180',

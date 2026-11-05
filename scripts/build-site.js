@@ -28,10 +28,11 @@ ${alts}
 }
 function top(l, page) {
   const links = LANGS.map(a => `<a href="${rel(a, page)}" hreflang="${a}" lang="${a}"${a === l ? ' aria-current="true"' : ''}>${NAMES[a]}</a>`).join('');
-  return `<header class="top"><a class="brand" href="${rel(l)}"><span>▸</span> Stayline</a><nav class="langs" aria-label="Language">${links}</nav><a class="btn small" href="/app/">${esc(L[l].cta)}</a></header>`;
+  const sections = page === '' ? `<nav class="sitenav" aria-label="${esc(X[l].navLabel)}"><a href="#how">${esc(X[l].navHow)}</a><a href="#features">${esc(X[l].navFeat)}</a><a href="#price">${esc(X[l].navPrice)}</a><a href="#faq">${esc(X[l].navFaq)}</a></nav>` : '';
+  return `<header class="top"><a class="brand" href="${rel(l)}"><span>▸</span> Stayline</a>${sections}<nav class="langs" aria-label="Language">${links}</nav><a class="btn small" href="/app/">${esc(L[l].cta)}</a></header>`;
 }
 function foot(l) {
-  return `<footer><div class="in"><span>${esc(L[l].foot)}</span> · <a href="${rel(l, 'privacy')}">${esc(X[l].privacy)}</a> · <a href="${rel(l, 'terms')}">${esc(X[l].terms)}</a> · <a href="mailto:${esc(CFG.supportEmail)}">${esc(CFG.supportEmail)}</a></div></footer>`;
+  return `<footer><div class="in foot-in"><div class="foot-brand"><a class="brand" href="${rel(l)}"><span>▸</span> Stayline</a><p>${esc(L[l].foot)}</p></div><div class="foot-meta"><nav aria-label="Legal"><a href="${rel(l, 'privacy')}">${esc(X[l].privacy)}</a> · <a href="${rel(l, 'terms')}">${esc(X[l].terms)}</a> · <a href="mailto:${esc(CFG.supportEmail)}">${esc(CFG.supportEmail)}</a></nav><p>&copy; ${new Date().getFullYear()} Stayline</p></div></div></footer>`;
 }
 function jsonld(l) {
   const s = Object.fromEntries(Object.entries(L[l]).map(([k, v]) => [k, String(v).split('{price}').join(CFG.price)]));
@@ -49,7 +50,7 @@ ${top(l, '')}
 <main>
 <section class="hero"><div class="in">
   <div class="copy"><h1>${esc(s.h1)}</h1><p class="lead">${esc(s.lead)}</p>
-    <p class="ctas"><a class="btn" href="/app/">${esc(s.cta)}</a> <a class="btn ghost" href="#features">${esc(s.cta2)}</a></p><p class="note">${esc(s.ctaNote)}</p>
+    <p class="ctas"><a class="btn" href="/app/">${esc(s.cta)}</a> <a class="btn ghost" href="#features">${esc(s.cta2)}</a></p><p class="note">${esc(s.ctaNote).split('{price}').join(esc(CFG.price))}</p>
     <ul class="trust">${[1, 2, 3, 4].map(i => `<li>${esc(s['trust' + i])}</li>`).join('')}</ul></div>
   <div class="demo" aria-hidden="true"><div class="flaps"><b>6</b><b>2</b></div><div class="unit">${esc(s.demoUnit)}</div>
     <div class="bar"><i class="in" style="--w:50%"></i><i style="--w:8%"></i><i class="in" style="--w:22%"></i><i style="--w:20%"></i></div>
@@ -60,11 +61,11 @@ ${top(l, '')}
   <ul class="feats">${[1, 2, 3, 4, 5, 6, 7, 8].map(i => `<li><b>${esc(s['ft' + i])}</b><span>${esc(s['fx' + i])}</span></li>`).join('')}</ul></div></section>
 <section class="paper"><div class="in"><h2>${esc(s.whyH)}</h2>
   <div class="cols"><p>${esc(s.why1)}</p><p>${esc(s.why2)}</p><p>${esc(s.why3)}</p></div></div></section>
-<section class="paper alt"><div class="in"><h2>${esc(s.priceH)}</h2>
+<section class="paper alt" id="price"><div class="in"><h2>${esc(s.priceH)}</h2>
   <div class="plans">
     <div class="plan pro"><h3>Stayline Pro</h3><p class="price">${esc(CFG.price)} <small>${esc(s.once)}</small></p><ul><li>${esc(s.p0)}</li><li>${esc(s.p1)}</li><li>${esc(s.p2)}</li><li>${esc(s.p3)}</li></ul><a class="btn" href="${esc(CFG.checkoutUrl)}" rel="noopener">${esc(s.proCta)}</a><p class="fine">${esc(s.payNote)}</p></div>
   </div></div></section>
-<section class="paper"><div class="in"><h2>${esc(s.faqH)}</h2>
+<section class="paper" id="faq"><div class="in"><h2>${esc(s.faqH)}</h2>
 ${[1, 2, 3, 4].map(i => `  <details><summary>${esc(s['q' + i])}</summary><p>${esc(s['a' + i])}</p></details>`).join('\n')}</div></section>
 <section class="endcta"><div class="in"><h2>${esc(s.endH)}</h2><p>${esc(s.endB)}</p><a class="btn" href="/app/">${esc(s.cta)}</a></div></section>
 </main>
