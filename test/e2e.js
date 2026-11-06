@@ -1,9 +1,10 @@
 const { chromium } = require('playwright'), http = require('http'), fs = require('fs'), path = require('path'), assert = require('assert');
 const root = path.join(__dirname, '..'), types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.xml': 'application/xml', '.txt': 'text/plain' };
 const srv = http.createServer((q, r) => {
+  if (q.url === '/favicon.ico') { r.writeHead(204); return r.end(); }
   if (q.url === '/api/license') { r.writeHead(200, { 'content-type': 'application/json' }); return r.end('{"configured":false}'); }
   let p = decodeURIComponent(q.url.split('?')[0].split('#')[0]); if (p.endsWith('/')) p += 'index.html'; let f0 = path.join(root, p); if (!path.extname(p) && fs.existsSync(f0 + '.html')) p += '.html';
-  const f = path.join(root, p); if (!f.startsWith(root) || !fs.existsSync(f)) { console.error('Missing test resource:', p); r.writeHead(404); return r.end(); }
+  const f = path.join(root, p); if (!f.startsWith(root) || !fs.existsSync(f)) { r.writeHead(404); return r.end(); }
   r.writeHead(200, { 'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'", 'content-type': types[path.extname(f)] || 'text/plain' }); fs.createReadStream(f).pipe(r);
 }).listen(0);
 const ymd = d => d.toISOString().slice(0, 10), add = (n) => ymd(new Date(Date.now() + n * 864e5));
