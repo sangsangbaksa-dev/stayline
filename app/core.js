@@ -314,7 +314,7 @@
      Places match ignoring case and surrounding spaces; trips without a place are grouped under ''. Biggest first. */
   function placeStats(tr, today, days) {
     today = today || todayStr(); days = days || 365;
-    var end = dn(today), start = end - days + 1, by = {}, order = [];
+    var end = dn(today), start = end - days + 1, by = Object.create(null), order = [];
     tr.trips.forEach(function (t) {
       var set = stayDays([t], today), n = 0;
       for (var d = start; d <= end; d++) if (set[d]) n++;
@@ -535,7 +535,7 @@
     var set = stayDays(tr.trips, today), byYear = {}, total = 0, k;
     for (k in set) { var y = new Date(+k * 86400000).getUTCFullYear(); byYear[y] = (byYear[y] || 0) + 1; total++; }
     var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; }).map(function (y) { return { year: y, days: byYear[y] }; });
-    var longest = null, places = {}, t = dn(today), count = 0;
+    var longest = null, places = Object.create(null), t = dn(today), count = 0;
     (tr.trips || []).forEach(function (x) {
       var a = dn(x.from), b = x.to ? dn(x.to) : t;
       if (isNaN(a) || isNaN(b) || b < a) return;
