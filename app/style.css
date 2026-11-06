@@ -132,3 +132,40 @@ button,.tab,.ovrow,.trips li{transition:background-color .15s ease,border-color 
 .ovrow>span{min-width:0;overflow-wrap:anywhere}
 .ovrow .chip{flex-shrink:0}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+
+/* Terminal-inspired surfaces give the counter priority without hiding the planning tools. */
+@media screen {
+  .wrap { max-width: 600px; padding-top: 22px; }
+  header { margin-bottom: 20px; }
+  h1 { font-size: 1.35rem; letter-spacing: -.02em; }
+  .mark { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--amber); border-radius: 11px; }
+  .tabs { gap: 7px; margin-bottom: 16px; padding-bottom: 5px; }
+  .tab { padding: 8px 15px; min-height: 40px; }
+  .tab.on { background: color-mix(in srgb, var(--amber) 10%, var(--card)); }
+  .board { position: relative; overflow: hidden; padding: 22px 20px 18px; border-radius: 16px; box-shadow: 0 12px 32px -24px #0009; }
+  .board::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; background: var(--c); }
+  .flap { gap: 16px; margin-bottom: 14px; }
+  .digits b { border-radius: 8px; box-shadow: inset 0 -1px 0 #000, 0 3px 7px #0003; }
+  .strip { height: 18px; gap: 2px; margin: 16px 0 12px; }
+  .strip i { border-radius: 3px; }
+  .card { padding: 18px; border-radius: 14px; box-shadow: 0 8px 24px -24px #0009; }
+  .rowhead { margin-bottom: 12px; }
+  .rowhead h2 { font-size: 1.05rem; }
+  button, a.link { min-height: 44px; }
+  button.small { min-height: 38px; }
+  button.pri, a.pri { box-shadow: 0 5px 14px color-mix(in srgb, var(--amber) 18%, transparent); }
+  .empty { padding: 38px 12px; }
+  .ghostflap { border: 1px solid var(--line); }
+  dialog { padding: 22px; border-radius: 16px; box-shadow: 0 18px 70px #0008; }
+  @media (max-width: 400px) {
+    .wrap { padding: 16px 12px 48px; }
+    .board { padding: 18px 15px 16px; }
+    .card { padding: 15px; }
+    .boardbtns > button { flex: 1 1 auto; }
+  }
+}
+@media screen {
+  .empty { border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: 0 12px 28px -26px #0009; }
+  .empty .steps { list-style: none; padding-left: 0; }
+  .empty .steps li { padding: 0 0 7px; }
+}

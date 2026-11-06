@@ -1,6 +1,6 @@
 # Stayline
 
-A day counter for stay limits: Schengen 90/180, the 183-day tax rule, or a custom limit. Static site, no server, no account, no location access; data in localStorage. 5 languages (en, ko, ja, zh, es). Paid app: one payment (Stayline Pro) unlocks it on a device; without a licence key the counter stays locked.
+A day counter for stay limits: Schengen 90/180, the 183-day tax rule, or a custom limit. App data is stored in browser localStorage, with no account or location access; the licence check uses a serverless endpoint and an external licensing service. 5 languages (en, ko, ja, zh, es). Paid app: one payment (Stayline Pro) unlocks it on a device; without a licence key the counter stays locked.
 
 ### Features
 - **Counters**: several counters (people or profiles), each with its own rule: Schengen 90/180, 180 in any 365 days, 183 per calendar year, or a custom rolling window or calendar-year limit. An overview lists all counters, and a group planner finds dates that work for everyone at once.
@@ -14,7 +14,7 @@ A day counter for stay limits: Schengen 90/180, the 183-day tax rule, or a custo
 - **Look**: a progress ring on the status card, a plain-language line under each rule explaining how the count is computed, light, dark or automatic theme, high-contrast support, and a layout that works at 360px wide.
 
 - `config.js` the one place for checkout link, support email, price, site URL (read by the app and by the site generator)
-- `app/` the app; `api/license.js` serverless licence check (Lemon Squeezy; env `LEMONSQUEEZY_PRODUCT_ID (optional)`; without them the app falls back to the offline placeholder key check)
+- `app/` the app; `api/license.js` serverless licence check (Lemon Squeezy; set `LEMONSQUEEZY_PRODUCT_ID` to restrict keys to this product; the app falls back to an offline placeholder check if verification is disabled or the endpoint is unreachable)
 - `scripts/build-site.js` generates the landing, privacy and terms pages for 5 languages, `sitemap.xml`, `robots.txt` from `scripts/landing-strings.json` and `scripts/site-i18n.js`. Run it after editing `config.js` or any string.
 - `functions/api/license.js`, `_headers`, `scripts/build-pages.js`: Cloudflare Pages version of the same site (see `docs/cloudflare-pages.md`)
 - `docs/` launch checklist, copy and post drafts, outreach plan, calculation verification
