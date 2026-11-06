@@ -476,7 +476,7 @@ t2('border sheet clips the start date and flags overlapping trips', () => {
 test('ics import: all-day end is exclusive, timed events use their date, commas unescaped', () => {
   const ics = 'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20260301\r\nDTEND;VALUE=DATE:20260305\r\nSUMMARY:Lisbon\r\nEND:VEVENT\r\n' +
     'BEGIN:VEVENT\r\nDTSTART:20260310T090000Z\r\nDTEND:20260310T170000Z\r\nSUMMARY:Day\\, trip\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nDTSTART:20260401\r\nSUMMARY:Broken\r\nEND:VEVENT\r\nEND:VCALENDAR';
-  assert.deepEqual(C.parseIcs(ics), [{ place: 'Lisbon', from: '2026-03-01', to: '2026-03-04' }, { place: 'Day, trip', from: '2026-03-10', to: '' }, { place: 'Broken', from: '2026-04-01', to: '' }]);
+  assert.deepEqual(C.parseIcs(ics), [{ place: 'Lisbon', from: '2026-03-01', to: '2026-03-04' }, { place: 'Day, trip', from: '2026-03-10', to: '2026-03-10' }, { place: 'Broken', from: '2026-04-01', to: '2026-04-01' }]);
   assert.deepEqual(C.parseIcs('not a calendar'), []);
 });
 test('csv import: reads back what toCsv writes (quotes, formula guard, ongoing trip)', () => {
@@ -555,4 +555,29 @@ test('year report: one section per counter with rule, count and per-year table',
   assert.ok(md.includes('Longest stay: 10 days (Rome)'));
   assert.ok(md.includes('| 2026 | 10 |'));
   assert.ok(md.includes('Permit or visa valid until: 2030-01-01'));
+});
+
+
+test('trip search and status views preserve stored order and include ongoing end dates', () => {
+ const trips = [
+  {id:'a', from:'2026-01-01',to:'2026-01-02',place:'서울',note:'Family'},
+  {id:'b', from:'2026-11-06',to:'',place:'부산'},
+  {id:'c', from:'2026-12-01',to:'2026-12-05',place:'東京'}
+ ];
+ assert.deepEqual(C.filterTrips(trips,{status:'ongoing'},'2026-11-06').map(x=>x.id),['b']);
+ assert.deepEqual(C.filterTrips(trips,{status:'upcoming'},'2026-11-06').map(x=>x.id),['c']);
+ assert.deepEqual(C.filterTrips(trips,{query:'FAMILY'},'2026-11-06').map(x=>x.id),['a']);
+ assert.deepEqual(C.filterTrips(trips,{sort:'oldest'},'2026-11-06').map(x=>x.id),['a','b','c']);
+ assert.deepEqual(trips.map(x=>x.id),['a','b','c']);
+});
+test('pasted Korean dates and CR-only lines retain Korean place text', () => {
+ const result = C.parseTrips('\ufeff2026년 3월 1일 서울\r2026. 4. 5 ~ 2026. 4. 8 부산\r12026-01-01 invalid\r2026-02-300 bad');
+ assert.deepEqual(result.trips,[{from:'2026-03-01',to:'2026-03-01',place:'서울'},{from:'2026-04-05',to:'2026-04-08',place:'부산'}]);
+ assert.deepEqual(result.bad,[3,4]);
+});
+test('BOM and folded Korean ICS summary preserve single-day duration', () => {
+ const got=C.parseIcs('\ufeffBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20261101\r\nDTEND;VALUE=DATE:20261102\r\nSUMMARY:서울\\, 한국\r\n  여행\r\nEND:VEVENT');
+ assert.deepEqual(got,[{from:'2026-11-01',to:'2026-11-01',place:'서울, 한국 여행'}]);
+ const trip=tr(got.map(x=>[x.from,x.to]));
+ assert.equal(Object.keys(C.stayDays(trip.trips,'2026-11-06')).length,1);
 });

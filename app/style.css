@@ -169,3 +169,13 @@ button,.tab,.ovrow,.trips li{transition:background-color .15s ease,border-color 
   .empty .steps { list-style: none; padding-left: 0; }
   .empty .steps li { padding: 0 0 7px; }
 }
+
+/* Searchable trip library: controls stay together without crowding the history. */
+.trip-controls{display:grid;grid-template-columns:minmax(180px,2fr) minmax(120px,1fr) minmax(120px,1fr);gap:12px;padding:16px;border:1px solid var(--line);border-radius:14px;margin-top:16px}
+.trip-controls label{margin:0;font-size:.85rem;font-weight:600}
+.trip-controls input,.trip-controls select{width:100%;margin-top:6px;min-height:44px}
+.trip-count{margin:14px 0 10px;font-variant-numeric:tabular-nums}
+.trip-empty{padding:24px 16px;text-align:center;border:1px dashed var(--line);border-radius:12px}
+#p-review{margin-top:12px}
+@media(max-width:600px){.trip-controls{grid-template-columns:1fr 1fr;padding:12px}.trip-query{grid-column:1/-1}}
+@media print{.trip-controls,#p-review{display:none}}

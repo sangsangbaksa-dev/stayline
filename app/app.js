@@ -2,7 +2,7 @@
   'use strict';
   var C = window.SL, I = window.I18N, CFG = window.SL_CONFIG;
   var KEY = 'stayline.v1', root = document.getElementById('root');
-  var state = load(), lang = I.pick(state.lang), plan = {}, adding = false, creating = false, editing = '', editCounter = false, pasting = false, calMonth = '';
+  var state = load(), lang = I.pick(state.lang), plan = {}, adding = false, creating = false, editing = '', editCounter = false, pasting = false, calMonth = '', tripDraft = null, tripFilters = { query: '', status: 'all', sort: 'newest' };
 
   function load() {
     try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.trackers)) { s.trackers = C.sanitize(s.trackers); return s; } } catch (e) {}
@@ -156,9 +156,13 @@
     /* a cleared field is stored as '' or 0; keep it empty instead of snapping back on the next render */
     var start = plan.arrive != null ? plan.arrive : C.addDays(C.todayStr(), 1), n = plan.nights != null ? plan.nights : 14, rule = C.cleanRule(tr.rule);
     var out = h('p', { class: 'plan-out', id: 'plan-out', role: 'status' }), win = h('div', { class: 'wins' });
+    var review = h('button', { type: 'button', class: 'pri', id: 'p-review', disabled: '', onclick: function () {
+      tripDraft = { from: plan.arrive, to: C.addDays(plan.arrive, plan.nights - 1) }; adding = true; render();
+    } }, T('reviewPlan'));
     function calc() {
       var a = document.getElementById('p-arrive').value, d = +document.getElementById('p-days').value;
       plan = { arrive: a, nights: d };
+      review.disabled = !C.validDate(a) || !Number.isInteger(d) || d < 1 || d > 366 || !C.validDate(C.addDays(a, d - 1));
       if (!C.validDate(a) || !(d >= 1)) { out.textContent = ''; win.replaceChildren(); return; }
       var max = C.maxStay(tr, a, C.todayStr()), msg;
       if (d > rule.limit) msg = T('planNoEarly', { n: d });
@@ -182,7 +186,7 @@
       h('div', { class: 'grid2' }, [
         h('label', null, [T('arrive'), h('input', { type: 'date', id: 'p-arrive', value: start, oninput: calc })]),
         h('label', null, [T('nights'), h('input', { type: 'number', id: 'p-days', min: 1, max: 366, value: n, inputmode: 'numeric', oninput: calc })])
-      ]), out, win]);
+      ]), out, win, review]);
     setTimeout(calc, 0);
     return wrap;
   }
@@ -378,7 +382,11 @@
       } }, T('borderCopy'))])]);
   }
   function tripList(tr, ro) {
-    var list = tr.trips.length ? h('ul', { class: 'trips' }, tr.trips.map(function (t) {
+    var results = h('div', { id: 'trip-results' }), count = h('p', { class: 'trip-count muted small', role: 'status' });
+    function refresh() {
+      var filtered = C.filterTrips(tr.trips, tripFilters, C.todayStr());
+      count.textContent = T('tripResults', { n: filtered.length, total: tr.trips.length });
+      var list = filtered.length ? h('ul', { class: 'trips' }, filtered.map(function (t) {
       var days = Object.keys(C.stayDays([t], C.todayStr())).length;
       return h('li', null, [
         h('div', null, [
@@ -396,17 +404,25 @@
           h('button', { class: 'ghost x', 'aria-label': T('confTrip'), onclick: function () { if (confirm(T('confTrip'))) undoable(T('tripGone'), function () { C.removeTrip(tr, t.id); save(); render(); }); } }, '×')
         ])
       ]);
-    })) : h('p', { class: 'muted' }, T('noTrips'));
-    return h('section', { class: 'card' }, [
-      h('div', { class: 'rowhead' }, [h('h2', null, T('trips')), ro ? null : h('span', { class: 'rowbtns' }, [h('button', { class: 'ghost small', onclick: function () { pasting = true; render(); } }, T('pasteBtn')), h('button', { class: 'pri small', onclick: function () { adding = true; render(); } }, '+ ' + T('addTrip'))])]),
-      list]);
+      })) : h('div', { class: 'trip-empty' }, [h('p', null, T(tr.trips.length ? 'tripNoMatch' : 'noTrips')), tr.trips.length ? h('button', { type: 'button', class: 'ghost small', onclick: reset }, T('tripReset')) : null]);
+      results.replaceChildren(list);
+    }
+    var query = h('input', { type: 'search', id: 'trip-search', maxlength: 120, value: tripFilters.query, placeholder: T('tripSearch'), oninput: function (ev) { if (!ev.isComposing) { tripFilters.query = query.value; refresh(); } }, oncompositionend: function () { tripFilters.query = query.value; refresh(); } });
+    var status = h('select', { id: 'trip-status', onchange: function () { tripFilters.status = status.value; refresh(); } }, ['all', 'upcoming', 'ongoing', 'completed'].map(function (x) { return h('option', { value: x, selected: x === tripFilters.status ? '' : false }, T('trip_' + x)); }));
+    var sort = h('select', { id: 'trip-sort', onchange: function () { tripFilters.sort = sort.value; refresh(); } }, ['newest', 'oldest'].map(function (x) { return h('option', { value: x, selected: x === tripFilters.sort ? '' : false }, T('trip_' + x)); }));
+    function reset() { tripFilters = { query: '', status: 'all', sort: 'newest' }; query.value = ''; status.value = 'all'; sort.value = 'newest'; refresh(); }
+    refresh();
+    return h('section', { class: 'card trip-library', id: 'trip-library' }, [
+      h('div', { class: 'rowhead' }, [h('h2', null, T('trips')), ro ? null : h('span', { class: 'rowbtns' }, [h('button', { class: 'ghost small', onclick: function () { pasting = true; render(); } }, T('pasteBtn')), h('button', { class: 'pri small', onclick: function () { tripDraft = null; adding = true; render(); } }, '+ ' + T('addTrip'))])]),
+      tr.trips.length ? h('div', { class: 'trip-controls' }, [h('label', { class: 'trip-query' }, [T('tripSearch'), query]), h('label', null, [T('tripStatus'), status]), h('label', null, [T('tripSort'), sort])]) : null,
+      count, results]);
   }
 
   function tripDialog(tr) {
     var cur = editing ? tr.trips.filter(function (x) { return x.id === editing; })[0] : null;
     var dlg = h('dialog', { 'aria-labelledby': 'dlg-h' }), err = h('p', { class: 'err', role: 'alert' });
-    var from = h('input', { type: 'date', id: 'f-from', required: '', value: cur ? cur.from : C.todayStr() });
-    var to = h('input', { type: 'date', id: 'f-to', value: cur ? cur.to : '', disabled: cur && !cur.to ? '' : false });
+    var from = h('input', { type: 'date', id: 'f-from', required: '', value: cur ? cur.from : tripDraft ? tripDraft.from : C.todayStr() });
+    var to = h('input', { type: 'date', id: 'f-to', value: cur ? cur.to : tripDraft ? tripDraft.to : '', disabled: cur && !cur.to ? '' : false });
     var on = h('input', { type: 'checkbox', id: 'f-on', checked: cur && !cur.to ? '' : false, onchange: function () { to.disabled = on.checked; if (on.checked) to.value = ''; } });
     var hol = h('input', { type: 'checkbox', id: 'f-hol', checked: cur && cur.holiday ? '' : false });
     var rd = h('input', { type: 'date', id: 'f-rdate', value: cur && cur.remindOn ? cur.remindOn : '' });
@@ -416,7 +432,7 @@
       var data = { place: document.getElementById('f-place').value, note: document.getElementById('f-note').value, from: from.value, to: on.checked ? '' : to.value, holiday: hol.checked, remindOn: rd.value, remindText: rt.value };
       var ok = cur ? C.updateTrip(tr, cur.id, data) : C.addTrip(tr, data);
       if (!ok) { err.textContent = T('badTrip'); return; }
-      adding = false; editing = ''; save(); render();
+      adding = false; editing = ''; tripDraft = null; save(); render();
     } }, [
       h('h2', { id: 'dlg-h' }, cur ? T('editTrip') : T('addTrip')),
       h('label', null, [T('place'), h('input', { id: 'f-place', maxlength: 60, value: cur ? cur.place : '' })]),
@@ -428,7 +444,7 @@
       h('label', null, [T('remindDateL'), rd]),
       h('label', null, [T('remindTextL'), rt]),
       err,
-      h('div', { class: 'row' }, [h('button', { type: 'button', class: 'ghost', onclick: function () { adding = false; editing = ''; render(); } }, T('cancel')), h('button', { type: 'submit', class: 'pri' }, T('save'))])
+      h('div', { class: 'row' }, [h('button', { type: 'button', class: 'ghost', onclick: function () { adding = false; editing = ''; tripDraft = null; render(); } }, T('cancel')), h('button', { type: 'submit', class: 'pri' }, T('save'))])
     ]));
     return dlg;
   }
@@ -697,7 +713,7 @@
     /* re-rendering drops keyboard focus; put it back on the same input when it had an id */
     if (fid) { var fe = document.getElementById(fid); if (fe && typeof fe.focus === 'function' && document.activeElement !== fe) fe.focus(); }
   }
-  document.addEventListener('cancel', function () { adding = creating = editCounter = pasting = false; editing = ''; setTimeout(render, 0); }, true);
+  document.addEventListener('cancel', function () { adding = creating = editCounter = pasting = false; editing = ''; tripDraft = null; setTimeout(render, 0); }, true);
   render();
   if (!shared && /^#s=/.test(location.hash)) toast(T('shareBad'));
   if (!shared) remind();
