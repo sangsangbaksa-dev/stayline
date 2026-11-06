@@ -599,3 +599,19 @@ test('CSV trips reject malformed quoting and ambiguous columns without importing
  assert.equal(valid.trips.length,1);
  assert.equal(valid.trips[0].place,'서울, "한국" 여행');
 });
+
+
+test('place statistics preserve prototype-like place labels without mutating trips', () => {
+  const trips = [
+    { from: '2026-11-01', to: '2026-11-02', place: '__proto__' },
+    { from: '2026-11-03', to: '2026-11-03', place: 'constructor' },
+    { from: '2026-11-04', to: '2026-11-04', place: 'toString' }
+  ];
+  const original = JSON.stringify(trips);
+  const prototypeKeys = Object.keys(Object.prototype);
+  const result = C.placeStats({ trips }, '2026-11-05', 30);
+  assert.deepEqual(result.map(x => [x.place, x.days]), [['__proto__', 2], ['constructor', 1], ['toString', 1]]);
+  assert.equal(C.yearStats({ trips }, '2026-11-05').places, 3);
+  assert.equal(JSON.stringify(trips), original);
+  assert.deepEqual(Object.keys(Object.prototype), prototypeKeys, 'place labels cannot write prototype properties');
+});
