@@ -208,8 +208,8 @@
   /* pasted text -> trips. One trip per line: two dates (YYYY-MM-DD, YYYY/M/D or YYYY.M.D) plus an optional place;
      one date = a single day. Lines that do not parse are returned in `bad` (1-based line numbers). */
   function parseTrips(text) {
-    var trips = [], bad = [], DATE = /(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/g;
-    String(text || '').split(/\r?\n/).slice(0, 500).forEach(function (line, i) {
+    var trips = [], bad = [], DATE = /(?<!\d)(\d{4})\s*(?:[-\/.]\s*|년\s*)(\d{1,2})\s*(?:[-\/.]\s*|월\s*)(\d{1,2})(?:\s*일)?(?!\d)/g;
+    String(text || '').replace(/^\uFEFF/, '').split(/\r\n?|\n/).slice(0, 500).forEach(function (line, i) {
       if (!line.trim()) return;
       var ds = [], m, rest = line;
       DATE.lastIndex = 0;
@@ -568,9 +568,9 @@
   }
 
   /* .ics import: each VEVENT becomes a trip. Summary is the place. All-day DTEND is exclusive, so the last day is one day before it.
-     Timed events use the calendar date of start and end. Returns [{place, from, to}] (to '' for a single day). */
+     Timed events use the calendar date of start and end. Returns [{place, from, to}] (same start and end for a single day). */
   function parseIcs(text) {
-    var lines = String(text || '').replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n');
+    var lines = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n');
     var out = [], cur = null;
     function day(v) { var m = /^(\d{4})(\d{2})(\d{2})/.exec(v || ''); return m ? m[1] + '-' + m[2] + '-' + m[3] : ''; }
     lines.forEach(function (ln) {
@@ -580,7 +580,7 @@
           var to = cur.end && validDate(cur.end) ? cur.end : cur.start;
           if (cur.allDay && dn(to) > dn(cur.start)) to = addDays(to, -1);
           if (dn(to) < dn(cur.start)) to = cur.start;
-          out.push({ place: oneLine(cur.summary || '', 60), from: cur.start, to: to === cur.start ? '' : to });
+          out.push({ place: oneLine(cur.summary || '', 60), from: cur.start, to: to });
         }
         cur = null; return;
       }
@@ -727,8 +727,21 @@
     });
     return out.join('\n');
   }
+  /* A view over the original trips: filtering never mutates stored order or date counts. */
+  function filterTrips(trips, filters, today) {
+    filters = filters || {}; today = today || todayStr();
+    var q = String(filters.query || '').trim().toLowerCase();
+    return (trips || []).filter(function (trip) {
+      var status = trip.from > today ? 'upcoming' : (!trip.to || trip.to >= today ? 'ongoing' : 'completed');
+      return (!filters.status || filters.status === 'all' || filters.status === status) &&
+        (!q || [trip.place, trip.note, trip.remindText, trip.from, trip.to].join(' ').toLowerCase().indexOf(q) >= 0);
+    }).slice().sort(function (a, b) {
+      var order = a.from < b.from ? -1 : a.from > b.from ? 1 : 0;
+      return filters.sort === 'oldest' ? order : -order;
+    });
+  }
   var API = {
-    oneLine: oneLine, parseIcs: parseIcs, permitWatch: permitWatch, yearReport: yearReport,
+    filterTrips: filterTrips, oneLine: oneLine, parseIcs: parseIcs, permitWatch: permitWatch, yearReport: yearReport,
     PRESETS: PRESETS, dn: dn, str: str, todayStr: todayStr, addDays: addDays, validDate: validDate, cleanRule: cleanRule,
     stayDays: stayDays, usedOn: usedOn, summary: summary, maxStay: maxStay, lastDay: lastDay, earliestEntry: earliestEntry, strip: strip,
     validDraft: validDraft, simulate: simulate, addDraft: addDraft, removeDraft: removeDraft, commitDrafts: commitDrafts, forecast: forecast, groupMaxStay: groupMaxStay, groupEarliest: groupEarliest, monthlyUsage: monthlyUsage, placeStats: placeStats, autoItinerary: autoItinerary, calendarMonth: calendarMonth, addMonth: addMonth, audit: audit, urgent: urgent, itineraryText: itineraryText, arrivalWindows: arrivalWindows, parseTrips: parseTrips, parseCsvTrips: parseCsvTrips, leaveOn: leaveOn, newTrips: newTrips, weeklyYear: weeklyYear, explainRule: explainRule, reminders: reminders, alerts: alerts, alertsIcs: alertsIcs,
