@@ -581,3 +581,21 @@ test('BOM and folded Korean ICS summary preserve single-day duration', () => {
  const trip=tr(got.map(x=>[x.from,x.to]));
  assert.equal(Object.keys(C.stayDays(trip.trips,'2026-11-06')).length,1);
 });
+
+
+test('CSV trips reject malformed quoting and ambiguous columns without importing partial data', () => {
+ for (const value of [
+  'from,to,place\n2026-01-01,2026-01-02,"Rome',
+  'from,to,place\n2026-01-01,2026-01-02,"Rome"junk',
+  'from,to,place\n2026-01-01,2026-01-02,Ro"me',
+  'from,to,from\n2026-01-01,2026-01-02,2026-01-03',
+  'from,to,place\n2026-01-01,2026-01-02,Rome,Italy'
+ ]) {
+  const result=C.parseCsvTrips(value);
+  assert.equal(result.trips.length,0, value);
+  assert.ok(result.bad.length, value);
+ }
+ const valid=C.parseCsvTrips('from,to,place\r\n2026-01-01,2026-01-02,"서울, ""한국""\r\n여행"');
+ assert.equal(valid.trips.length,1);
+ assert.equal(valid.trips[0].place,'서울, "한국" 여행');
+});
