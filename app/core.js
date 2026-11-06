@@ -595,20 +595,22 @@
   }
   /* RFC 4180-style CSV reader: quoted cells, doubled quotes, CRLF or LF. Returns rows of cells. */
   function csvRows(text) {
-    var rows = [], row = [], cell = '', q = false, s = String(text || '').replace(/^﻿/, '');
+    var rows = [], row = [], cell = '', q = false, afterQuote = false, s = String(text || '').replace(/^﻿/, '');
     for (var i = 0; i < s.length; i++) {
       var ch = s.charAt(i);
       if (q) {
-        if (ch === '"') { if (s.charAt(i + 1) === '"') { cell += '"'; i++; } else q = false; }
+        if (ch === '"') { if (s.charAt(i + 1) === '"') { cell += '"'; i++; } else { q = false; afterQuote = true; } }
         else cell += ch;
-      } else if (ch === '"') q = true;
-      else if (ch === ',') { row.push(cell); cell = ''; }
+      } else if (ch === '"') { if (cell !== '' || afterQuote) return null; q = true; }
+      else if (ch === ',') { row.push(cell); cell = ''; afterQuote = false; }
       else if (ch === '\n' || ch === '\r') {
         if (ch === '\r' && s.charAt(i + 1) === '\n') i++;
-        row.push(cell); rows.push(row); row = []; cell = '';
-      } else cell += ch;
+        row.push(cell); rows.push(row); row = []; cell = ''; afterQuote = false;
+      } else if (afterQuote) { if (!/[ \t]/.test(ch)) return null; }
+      else cell += ch;
     }
-    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    if (q) return null;
+    if (cell !== '' || row.length || afterQuote) { row.push(cell); rows.push(row); }
     return rows;
   }
   /* CSV -> trips for the current counter. Needs a header row with `from` and `to` (matched ignoring case; `place` is optional),
@@ -616,12 +618,13 @@
      (toCsv's guard) is removed. Returns { trips, bad } like parseTrips; `bad` holds approximate line numbers
      (header is line 1; blank lines are skipped, so after one they can drift). */
   function parseCsvTrips(text) {
-    var rows = csvRows(text).filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); });
-    var out = { trips: [], bad: [] };
+    var out = { trips: [], bad: [] }, rows = csvRows(text);
+    if (!rows) { out.bad.push(1); return out; }
+    rows = rows.filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); });
     if (rows.length < 2) return out;
     var head = rows[0].map(function (c) { return String(c).trim().toLowerCase(); });
     var iF = head.indexOf('from'), iT = head.indexOf('to'), iP = head.indexOf('place');
-    if (iF < 0 || iT < 0) return out;
+    if (iF < 0 || iT < 0 || new Set(head).size !== head.length) { out.bad.push(1); return out; }
     /* cells are kept as typed: a leading apostrophe is not removed (csvCell only adds one before = + - @ tab CR on export) */
     function cellOf(r, k) { return k < 0 || r[k] == null ? '' : String(r[k]).trim(); }
     /* spreadsheets often write 2026/6/1 or 2026.6.1: pad those to YYYY-MM-DD before checking */
@@ -630,6 +633,7 @@
       return m ? m[1] + '-' + (m[2].length < 2 ? '0' : '') + m[2] + '-' + (m[3].length < 2 ? '0' : '') + m[3] : v;
     }
     rows.slice(1, 501).forEach(function (r, i) {
+      if (r.length > head.length) { out.bad.push(i + 2); return; }
       var t = { place: oneLine(cellOf(r, iP), 60), from: dateOf(r, iF), to: dateOf(r, iT) };
       if (!validTrip(t)) { out.bad.push(i + 2); return; }
       out.trips.push(t);

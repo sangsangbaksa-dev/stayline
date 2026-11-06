@@ -179,3 +179,12 @@ button,.tab,.ovrow,.trips li{transition:background-color .15s ease,border-color 
 #p-review{margin-top:12px}
 @media(max-width:600px){.trip-controls{grid-template-columns:1fr 1fr;padding:12px}.trip-query{grid-column:1/-1}}
 @media print{.trip-controls,#p-review{display:none}}
+
+/* Keep search tools readable and prevent translated controls from widening phones. */
+@media screen{
+ .trip-controls{background:var(--card);box-shadow:0 3px 12px color-mix(in srgb,var(--ink) 4%,transparent)}
+ .trip-controls>label,.trip-controls input,.trip-controls select{min-width:0}
+ .trip-controls:focus-within{border-color:var(--amber)}
+ .trip-count{display:inline-flex;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);font-size:.85rem;line-height:1.5}
+ .err:not(:empty){padding:10px 12px;border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));border-radius:10px;line-height:1.5}
+}
