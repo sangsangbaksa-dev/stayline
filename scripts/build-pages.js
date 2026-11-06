@@ -6,6 +6,6 @@ const root = path.join(__dirname, '..'), out = path.resolve(process.env.OUT || p
 cp.execFileSync(process.execPath, [path.join(__dirname, 'build-site.js')], { stdio: 'inherit' });
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
-const PUBLIC = ['index.html', 'privacy.html', 'terms.html', 'ko', 'ja', 'zh', 'es', 'app', 'config.js', 'landing.css', 'icon.svg', 'og.png', 'sitemap.xml', 'robots.txt', '_headers'];
+const PUBLIC = ['404.html', 'index.html', 'privacy.html', 'terms.html', 'ko', 'ja', 'zh', 'es', 'app', 'config.js', 'landing.css', 'icon.svg', 'og.png', 'sitemap.xml', 'robots.txt', '_headers'];
 for (const f of PUBLIC) fs.cpSync(path.join(root, f), path.join(out, f), { recursive: true });
 console.log('pages build ->', out);
