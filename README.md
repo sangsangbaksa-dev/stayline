@@ -25,3 +25,7 @@ A day counter for stay limits: Schengen 90/180, the 183-day tax rule, or a custo
 
 ## Why this niche
 See `docs/why.md`.
+
+## 배포 전 검증
+
+설치·빌드·브라우저 검사·Cloudflare 배포 파일 구성은 [PREDEPLOY.md](PREDEPLOY.md)를 참고하세요. `codex/predeploy-2026-11-06` 브랜치의 검증 워크플로에는 배포 단계가 없습니다.
