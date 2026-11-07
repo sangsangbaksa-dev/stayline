@@ -615,3 +615,58 @@ test('place statistics preserve prototype-like place labels without mutating tri
   assert.equal(JSON.stringify(trips), original);
   assert.deepEqual(Object.keys(Object.prototype), prototypeKeys, 'place labels cannot write prototype properties');
 });
+
+test('returnSchedule: a consumed day leaves a 180-day window 180 days later', () => {
+  const one = C.returnSchedule(tr([['2026-01-01', '2026-01-01']]), '2026-01-01');
+  assert.deepEqual(one, [{ date: '2026-06-30', days: 1 }]);
+  assert.equal(C.addDays('2026-01-01', 180), '2026-06-30');
+});
+
+test('returnSchedule: the oldest day in the window is the next one to return', () => {
+  const t = tr([['2026-01-01', '2026-03-31']]);
+  const onEdge = C.returnSchedule(t, '2026-06-29');
+  assert.equal(onEdge[0].date, '2026-06-30');
+  assert.equal(onEdge[0].days, 1);
+  assert.equal(onEdge.length, 90);
+  assert.equal(onEdge[onEdge.length - 1].date, C.addDays('2026-03-31', 180));
+  const next = C.returnSchedule(t, '2026-06-30');
+  assert.equal(next[0].date, C.addDays('2026-01-02', 180));
+  assert.equal(next.some(r => r.date === '2026-06-30'), false);
+});
+
+test('returnSchedule: overlaps count once, future days are not consumed, year rules are empty', () => {
+  const overlap = C.returnSchedule(tr([['2026-05-01', '2026-05-01'], ['2026-05-01', '2026-05-03']]), '2026-05-03');
+  assert.deepEqual(overlap.map(r => r.days), [1, 1, 1]);
+  assert.deepEqual(overlap.map(r => r.date), ['2026-10-28', '2026-10-29', '2026-10-30']);
+  assert.deepEqual(C.returnSchedule(tr([['2026-08-01', '2026-08-05']]), '2026-07-01'), []);
+  assert.deepEqual(C.returnSchedule(tr([['2026-01-01', '2026-01-10']], C.PRESETS.tax183), '2026-06-01'), []);
+  assert.deepEqual(C.returnSchedule(tr([]), '2026-06-01'), []);
+});
+
+test('returnSchedule: custom window and a DST boundary use UTC day numbers', () => {
+  const custom = { kind: 'rolling', limit: 5, window: 7 };
+  const rows = C.returnSchedule(tr([['2026-03-28', '2026-03-29']], custom), '2026-03-29');
+  assert.deepEqual(rows, [
+    { date: C.addDays('2026-03-28', 7), days: 1 },
+    { date: C.addDays('2026-03-29', 7), days: 1 }
+  ]);
+  assert.equal(rows[0].date, '2026-04-04');
+  assert.equal(C.dn('2026-03-30') - C.dn('2026-03-28'), 2);
+});
+
+test('stayReport is a personal summary of the counting window, not a second copy of future trips', () => {
+  const t = tr([['2026-01-01', '2026-01-03'], ['2026-12-01', '2026-12-05']]);
+  t.name = 'Ada'; t.trips[0].place = 'Rome';
+  const r = C.stayReport(t, '2026-01-10');
+  assert.equal(r.personal, true);
+  assert.equal(r.name, 'Ada');
+  assert.equal(r.today, '2026-01-10');
+  assert.equal(r.trips.length, 1);
+  assert.equal(r.trips[0].place, 'Rome');
+  assert.equal(r.trips[0].from, '2026-01-01');
+  assert.equal(r.trips[0].days, 3);
+  assert.equal(r.used, 3);
+  const ongoing = C.stayReport(tr([['2026-06-01', '']]), '2026-06-03');
+  assert.equal(ongoing.trips[0].to, '');
+  assert.equal(ongoing.trips[0].days, 3);
+});
