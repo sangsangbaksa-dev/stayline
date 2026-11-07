@@ -103,3 +103,8 @@ details{border-top-color:#c9d3df}
 @media(max-width:720px){.paper,.endcta{padding-block:52px}.feats li{border-radius:16px}}
 .endcta h2,.hero h1,.top .brand,footer .brand{color:#fff}
 .hero h1{color:#f4f1ea}
+/* refinements: tighter headings, consistent radii, note wraps under the buttons */
+h2{font-size:1.55rem;letter-spacing:-.015em;line-height:1.25;margin-bottom:20px}
+.note{display:block;margin:10px 0 0}
+.feats li,.plan{border-radius:14px}
+.steps li{padding-top:14px}

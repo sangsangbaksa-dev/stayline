@@ -398,6 +398,15 @@
     if (t.to && (!validDate(t.to) || dn(t.to) < dn(t.from))) return false;
     return true;
   }
+  /* The same trip moved by `days` (default 365: same dates next year). Keeps place, note and holiday flag; reminders are not copied.
+     Returns null when the input or the shifted result is not a valid trip. */
+  function shiftTrip(t, days) {
+    var n = days == null ? 365 : days;
+    if (!t || !validDate(t.from) || (t.to && !validDate(t.to))) return null;
+    if (typeof n !== 'number' || !isFinite(n) || n % 1 !== 0 || Math.abs(n) > 3650) return null;
+    var next = { place: t.place || '', from: addDays(t.from, n), to: t.to ? addDays(t.to, n) : '', note: t.note || '', holiday: t.holiday === true };
+    return validTrip(next) ? next : null;
+  }
   function addTrip(tr, trip) {
     if (!validTrip(trip)) return false;
     tr.trips.push({ id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), place: oneLine(trip.place, 60), from: trip.from, to: trip.to || '', note: cleanNote(trip.note), holiday: trip.holiday === true, remindOn: validDate(trip.remindOn) ? trip.remindOn : '', remindText: cleanNote(trip.remindText) });
@@ -792,7 +801,7 @@
     PRESETS: PRESETS, dn: dn, str: str, todayStr: todayStr, addDays: addDays, validDate: validDate, cleanRule: cleanRule,
     stayDays: stayDays, usedOn: usedOn, summary: summary, maxStay: maxStay, lastDay: lastDay, earliestEntry: earliestEntry, strip: strip,
     validDraft: validDraft, simulate: simulate, addDraft: addDraft, removeDraft: removeDraft, commitDrafts: commitDrafts, forecast: forecast, groupMaxStay: groupMaxStay, groupEarliest: groupEarliest, monthlyUsage: monthlyUsage, placeStats: placeStats, autoItinerary: autoItinerary, calendarMonth: calendarMonth, addMonth: addMonth, audit: audit, urgent: urgent, itineraryText: itineraryText, arrivalWindows: arrivalWindows, parseTrips: parseTrips, parseCsvTrips: parseCsvTrips, leaveOn: leaveOn, newTrips: newTrips, weeklyYear: weeklyYear, explainRule: explainRule, reminders: reminders, alerts: alerts, alertsIcs: alertsIcs,
-    compareRules: compareRules, yearStats: yearStats, encodeShare: encodeShare, decodeShare: decodeShare, safeLastDay: safeLastDay, borderSheet: borderSheet, cleanBuffer: cleanBuffer, cleanNote: cleanNote, validTrip: validTrip, addTrip: addTrip, updateTrip: updateTrip, sanitize: sanitize, removeTrip: removeTrip, toCsv: toCsv, toIcs: toIcs, csvCell: csvCell, makeKey: makeKey, validKey: validKey
+    compareRules: compareRules, yearStats: yearStats, encodeShare: encodeShare, decodeShare: decodeShare, safeLastDay: safeLastDay, borderSheet: borderSheet, cleanBuffer: cleanBuffer, cleanNote: cleanNote, validTrip: validTrip, shiftTrip: shiftTrip, addTrip: addTrip, updateTrip: updateTrip, sanitize: sanitize, removeTrip: removeTrip, toCsv: toCsv, toIcs: toIcs, csvCell: csvCell, makeKey: makeKey, validKey: validKey
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.SL = API;
 })(typeof window !== 'undefined' ? window : globalThis);

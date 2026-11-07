@@ -392,6 +392,7 @@
         ro ? null : h('span', { class: 'rowbtns' }, [
           /* only a trip that has started can end today; a planned one would get an end before its start */
           !t.to && t.from <= C.todayStr() ? h('button', { class: 'ghost', onclick: function () { t.to = C.todayStr(); save(); render(); } }, T('leftToday')) : null,
+          h('button', { class: 'ghost', onclick: function () { var next = C.shiftTrip(t); if (next && C.addTrip(tr, next)) { save(); render(); toast(T('repeatDone')); } else toast(T('repeatFail')); } }, T('repeatYear')),
           h('button', { class: 'ghost', onclick: function () { editing = t.id; render(); } }, T('edit')),
           h('button', { class: 'ghost x', 'aria-label': T('confTrip'), onclick: function () { if (confirm(T('confTrip'))) undoable(T('tripGone'), function () { C.removeTrip(tr, t.id); save(); render(); }); } }, '×')
         ])

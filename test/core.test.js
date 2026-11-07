@@ -556,3 +556,22 @@ test('year report: one section per counter with rule, count and per-year table',
   assert.ok(md.includes('| 2026 | 10 |'));
   assert.ok(md.includes('Permit or visa valid until: 2030-01-01'));
 });
+
+test('shiftTrip: same dates a year later, keeps place/note/holiday, drops reminders', () => {
+  const t = { id: 'a', place: 'Lisbon', from: '2026-02-28', to: '2026-03-01', note: 'conf', holiday: true, remindOn: '2026-02-20', remindText: 'x' };
+  const n = C.shiftTrip(t, 365);
+  assert.deepEqual(n, { place: 'Lisbon', from: '2027-02-28', to: '2027-03-01', note: 'conf', holiday: true });
+  assert.equal(C.shiftTrip(t, -365).from, '2025-02-28');
+  assert.equal(C.shiftTrip({ from: '2026-03-01', to: '' }).to, '');
+  assert.equal(C.shiftTrip({ from: '2026-03-01' }).from, '2027-03-01');
+});
+test('shiftTrip: rejects bad input and invalid results', () => {
+  assert.equal(C.shiftTrip(null), null);
+  assert.equal(C.shiftTrip({ from: '2026-02-30', to: '' }), null);
+  assert.equal(C.shiftTrip({ from: '2026-03-01', to: 'nope' }), null);
+  assert.equal(C.shiftTrip({ from: '2026-03-01', to: '' }, 1.5), null);
+  assert.equal(C.shiftTrip({ from: '2026-03-01', to: '' }, NaN), null);
+  assert.equal(C.shiftTrip({ from: '2026-03-01', to: '' }, Infinity), null);
+  assert.equal(C.shiftTrip({ from: '2026-03-01', to: '' }, 4000), null);
+  assert.equal(C.shiftTrip({ from: '2026-03-01', to: '' }, '365'), null);
+});
