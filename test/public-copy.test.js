@@ -20,7 +20,17 @@ test('payment configuration stays on the existing checkout and price', () => {
   const licence = read('api/license.js');
   assert.match(licence, /https:\/\/api\.lemonsqueezy\.com\/v1\/licenses\/validate/);
   assert.match(licence, /license_key/);
-  assert.equal(read('app/sw.js').includes("var V='stayline-v8'"), true);
+});
+
+test('service worker caches only successful same-origin responses', () => {
+  const sw = read('app/sw.js');
+  assert.equal(sw.includes("var V='stayline-v10'"), true);
+  assert.match(sw, /\.\.\/icon\.svg/);
+  assert.match(sw, /url\.origin!==self\.location\.origin/);
+  assert.match(sw, /\/api\//);
+  assert.match(sw, /r\.ok&&r\.type==='basic'/);
+  assert.match(sw, /e\.request\.method!=='GET'/);
+  assert.equal(sw.includes('stayline-v8'), false);
 });
 
 test('existing refund promises are unchanged in every locale', () => {

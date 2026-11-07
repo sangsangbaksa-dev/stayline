@@ -124,5 +124,53 @@ const ymd = d => d.toISOString().slice(0, 10), add = (n) => ymd(new Date(Date.no
   await fp.screenshot({ path: out + '/app-light.png', fullPage: true });
   await fp.click('.foot button:has-text("Theme: light")'); assert.equal(await fp.evaluate(() => document.documentElement.dataset.theme), 'dark');
   await fp.screenshot({ path: out + '/app-dark.png', fullPage: true });
+
+  // return schedule: Pro shows every row; a locked account sees the first row and the existing checkout link
+  const SL = require('../app/core.js');
+  const today = SL.todayStr(), d1 = SL.addDays(today, -10), d2 = SL.addDays(today, -4);
+  const back1 = SL.addDays(d1, 180), back2 = SL.addDays(d2, 180);
+  const fixture = { v: 1, active: 'x', lang: 'en', trackers: [{ id: 'x', name: 'Me', rule: { kind: 'rolling', limit: 90, window: 180 }, trips: [{ id: 'a', place: 'Lisbon', from: d1, to: d1 }, { id: 'b', place: 'Porto', from: d2, to: d2 }] }] };
+  const rctx = await b.newContext({ viewport: { width: 1100, height: 900 }, locale: 'en-US', timezoneId: 'UTC' });
+  await rctx.addInitScript((s) => { localStorage.setItem('stayline.v1', s); }, JSON.stringify(Object.assign({ pro: true }, fixture)));
+  const rp = await rctx.newPage(); rp.on('pageerror', e => errs.push(e.message));
+  await rp.goto(base + '/app/'); await rp.waitForSelector('.return-card');
+  await rp.locator('.return-card').scrollIntoViewIfNeeded();
+  await rp.screenshot({ path: out + '/return-pro.png' });
+  assert.equal(await rp.locator('.return-card .return-rows li').count(), 2);
+  assert.equal(await rp.locator('.return-upgrade').count(), 0);
+  assert.ok((await rp.locator('.return-card').textContent()).includes('do not guarantee admission'));
+  await rp.evaluate(() => { window.__printed = false; window.print = function () { window.__printed = document.body.classList.contains('printing-report') && !!document.querySelector('.stay-report'); }; });
+  await rp.click('.border-print');
+  assert.equal(await rp.evaluate(() => window.__printed), true);
+  const note = await rp.locator('.stay-report .report-note').textContent();
+  assert.ok(note.includes('Not an official immigration document') && note.includes('do not guarantee admission'));
+  await rp.emulateMedia({ media: 'print' });
+  const printed = await rp.evaluate(() => ({
+    report: getComputedStyle(document.querySelector('.stay-report')).display,
+    board: getComputedStyle(document.querySelector('.board')).display,
+    pay: document.querySelector('.paywall')
+  }));
+  assert.equal(printed.report, 'block');
+  assert.equal(printed.board, 'none');
+  assert.equal(printed.pay, null);
+  await rp.screenshot({ path: out + '/print-report.png', fullPage: true });
+  await rctx.close();
+
+  const lctx = await b.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', timezoneId: 'UTC' });
+  await lctx.addInitScript((s) => { localStorage.setItem('stayline.v1', s); }, JSON.stringify(Object.assign({ pro: false }, fixture)));
+  const lp2 = await lctx.newPage(); lp2.on('pageerror', e => errs.push(e.message));
+  await lp2.goto(base + '/app/'); await lp2.waitForSelector('.paywall'); await lp2.waitForSelector('.return-card');
+  assert.equal(await lp2.locator('.return-card .return-rows li').count(), 1);
+  assert.equal(await lp2.locator('.board').count(), 0);
+  assert.equal(await lp2.locator('.stay-report').count(), 0);
+  assert.equal(await lp2.locator('.border-print').count(), 0);
+  assert.equal(await lp2.locator('.return-upgrade').getAttribute('href'), CFG.checkoutUrl);
+  const preview = await lp2.locator('.return-card').innerText();
+  assert.ok(preview.includes('more date'));
+  assert.equal(preview.includes('Porto') || preview.includes('Lisbon'), false);
+  await lp2.screenshot({ path: out + '/return-preview.png', fullPage: true });
+  await lctx.close();
+  assert.notEqual(back1, back2);
+
   console.log(errs.length ? 'ERRORS: ' + errs.join('\n') : 'E2E OK'); await b.close(); srv.close(); process.exit(errs.length ? 1 : 0);
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

@@ -326,6 +326,26 @@
     return order.map(function (k) { return by[k]; }).sort(function (a, b) { return b.days - a.days || (a.place < b.place ? -1 : a.place > b.place ? 1 : 0); });
   }
 
+  /* Dates when days already counted in a rolling window fall out of it.
+     A stay day S is inside the window on day D while D - (window - 1) <= S <= D,
+     so S leaves on S + window. Days after `today` are not consumed yet.
+     A calendar-year rule does not age days out this way, so it returns [].
+     Overlapping trips count once. Each returned row is { date, days }. */
+  function returnSchedule(tr, today) {
+    today = today || todayStr();
+    var rule = cleanRule(tr && tr.rule);
+    if (rule.kind !== 'rolling') return [];
+    var set = stayDays(tr && tr.trips, today), t = dn(today), start = windowStart(rule, t), by = {};
+    for (var d = start; d <= t; d++) {
+      if (!set[d]) continue;
+      var back = d + rule.window;
+      by[back] = (by[back] || 0) + 1;
+    }
+    return Object.keys(by).map(Number).sort(function (a, b) { return a - b; }).map(function (d) {
+      return { date: str(d), days: by[d] };
+    });
+  }
+
   /* days left on each of the next `n` days if nothing new is added (an ongoing stay is assumed to end today) */
   function forecast(tr, today, n) {
     today = today || todayStr();
@@ -436,6 +456,24 @@
       rows.push({ place: x.place || '', from: x.from, countedFrom: str(Math.max(dn(x.from), a)), to: x.to || '', days: Object.keys(stayDays([x], today)).filter(function (k) { return +k >= a && +k <= t; }).length, note: x.note || '' });
     });
     return { name: tr.name || '', rule: s.rule, used: s.used, left: s.left, windowFrom: s.windowFrom, today: today, trips: rows, overlap: rows.reduce(function (n, r) { return n + r.days; }, 0) > s.used, lastDay: lastDay(tr, today), safeLastDay: safeLastDay(tr, today), expires: tr.expires || '' };
+  }
+  /* Personal trip summary for the printable report. Same window as the border sheet.
+     `personal: true` marks it as the traveller's own estimate, not an official document. */
+  function stayReport(tr, today) {
+    today = today || todayStr();
+    var b = borderSheet(tr || {}, today);
+    return {
+      personal: true,
+      name: b.name,
+      today: today,
+      rule: b.rule,
+      used: b.used,
+      left: b.left,
+      windowFrom: b.windowFrom,
+      trips: b.trips.map(function (x) { return { place: x.place, from: x.from, to: x.to, days: x.days, countedFrom: x.countedFrom }; }),
+      lastDay: b.lastDay,
+      safeLastDay: b.safeLastDay
+    };
   }
   /* rebuild a tracker list from untrusted JSON (restore from file): drop anything malformed, clamp the rest */
   function sanitize(list) {
@@ -747,7 +785,7 @@
   var API = {
     filterTrips: filterTrips, oneLine: oneLine, parseIcs: parseIcs, permitWatch: permitWatch, yearReport: yearReport,
     PRESETS: PRESETS, dn: dn, str: str, todayStr: todayStr, addDays: addDays, validDate: validDate, cleanRule: cleanRule,
-    stayDays: stayDays, usedOn: usedOn, summary: summary, maxStay: maxStay, lastDay: lastDay, earliestEntry: earliestEntry, strip: strip,
+    stayDays: stayDays, usedOn: usedOn, summary: summary, maxStay: maxStay, lastDay: lastDay, earliestEntry: earliestEntry, strip: strip, returnSchedule: returnSchedule, stayReport: stayReport,
     validDraft: validDraft, simulate: simulate, addDraft: addDraft, removeDraft: removeDraft, commitDrafts: commitDrafts, forecast: forecast, groupMaxStay: groupMaxStay, groupEarliest: groupEarliest, monthlyUsage: monthlyUsage, placeStats: placeStats, autoItinerary: autoItinerary, calendarMonth: calendarMonth, addMonth: addMonth, audit: audit, urgent: urgent, itineraryText: itineraryText, arrivalWindows: arrivalWindows, parseTrips: parseTrips, parseCsvTrips: parseCsvTrips, leaveOn: leaveOn, newTrips: newTrips, weeklyYear: weeklyYear, explainRule: explainRule, reminders: reminders, alerts: alerts, alertsIcs: alertsIcs,
     compareRules: compareRules, yearStats: yearStats, encodeShare: encodeShare, decodeShare: decodeShare, safeLastDay: safeLastDay, borderSheet: borderSheet, cleanBuffer: cleanBuffer, cleanNote: cleanNote, validTrip: validTrip, addTrip: addTrip, updateTrip: updateTrip, sanitize: sanitize, removeTrip: removeTrip, toCsv: toCsv, toIcs: toIcs, csvCell: csvCell, makeKey: makeKey, validKey: validKey
   };

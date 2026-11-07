@@ -290,6 +290,45 @@
     }));
     return h('section', { class: 'card' }, [h('h2', null, T('forecastH')), bars, h('p', { class: 'muted small' }, T('forecastCap'))]);
   }
+  /* Pro schedule of when rolling-window days drop out. A free preview shows only the first row. */
+  function returnCard(tr, preview) {
+    var rows = C.returnSchedule(tr, C.todayStr());
+    var shown = preview ? rows.slice(0, 1) : rows;
+    var list = shown.length ? h('ul', { class: 'alerts return-rows' }, shown.map(function (x) {
+      return h('li', null, T('backRow', { n: x.days, date: fmt(x.date) }));
+    })) : null;
+    var hidden = preview && rows.length > 1;
+    return h('section', { class: 'card return-card' }, [
+      h('h2', null, T('backH')),
+      h('p', { class: 'muted' }, T('backHint')),
+      list,
+      hidden ? h('p', { class: 'muted small' }, T('backMore', { n: rows.length - 1 })) : null,
+      hidden ? h('p', null, h('a', { class: 'pri btnlink return-upgrade', href: CFG.checkoutUrl, rel: 'noopener', target: '_blank' }, T('upgrade'))) : null
+    ]);
+  }
+  function stayReportEl(tr) {
+    var r = C.stayReport(tr, C.todayStr());
+    var rule = r.rule.kind === 'year' ? T('borderRuleY', { l: r.rule.limit }) : T('borderRuleR', { l: r.rule.limit, w: r.rule.window });
+    var items = r.trips.map(function (x) {
+      return h('li', null, (x.place || '—') + ': ' + fmt(x.from) + ' → ' + (x.to ? fmt(x.to) : T('today')) + ' · ' + x.days);
+    });
+    return h('section', { class: 'stay-report' }, [
+      h('h1', null, T('borderH')),
+      h('p', null, (r.name || T('namePh')) + ' · ' + r.today),
+      h('p', null, rule),
+      h('p', null, T('borderUsed', { u: r.used, n: Math.max(0, r.left), date: r.windowFrom, today: r.today })),
+      items.length ? h('ul', null, items) : h('p', null, T('borderNone')),
+      r.lastDay ? h('p', null, T('borderLast', { date: r.lastDay })) : null,
+      h('p', { class: 'report-note' }, T('reportNote'))
+    ]);
+  }
+  function printReport() {
+    if (needPro()) return;
+    document.body.classList.add('printing-report');
+    var clear = function () { document.body.classList.remove('printing-report'); window.removeEventListener('afterprint', clear); };
+    window.addEventListener('afterprint', clear);
+    window.print();
+  }
 
   function groupCard() {
     var start = plan.garrive != null ? plan.garrive : C.addDays(C.todayStr(), 1), n = plan.gnights != null ? plan.gnights : 14, all = state.trackers;
@@ -375,12 +414,15 @@
     var txt = borderText(tr);
     return h('section', { class: 'card' }, [h('h2', null, T('borderH')), h('p', { class: 'muted' }, T('borderHint')),
       h('pre', { class: 'sheet', tabindex: '0', role: 'region', 'aria-label': T('borderH') }, txt),
-      h('div', { class: 'row' }, [h('button', { class: 'ghost', onclick: function () {
-        (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast(T('borderCopied')); }, function () {
-          var pre = document.querySelector('pre.sheet'), r = document.createRange(); r.selectNodeContents(pre);
-          var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); toast(T('borderCopyFail'));
-        });
-      } }, T('borderCopy'))])]);
+      h('div', { class: 'row' }, [
+        h('button', { class: 'ghost', onclick: function () {
+          (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { toast(T('borderCopied')); }, function () {
+            var pre = document.querySelector('pre.sheet'), r = document.createRange(); r.selectNodeContents(pre);
+            var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); toast(T('borderCopyFail'));
+          });
+        } }, T('borderCopy')),
+        h('button', { class: 'ghost border-print', onclick: function () { printReport(); } }, T('print'))
+      ])]);
   }
   function tripList(tr, ro) {
     var results = h('div', { id: 'trip-results' }), count = h('p', { class: 'trip-count muted small', role: 'status' });
@@ -678,7 +720,7 @@
   function shareUrl(tr) { return location.origin + location.pathname + '#s=' + C.encodeShare(tr); }
   function sharedView(tr) {
     var kids = [header(), h('section', { class: 'banner', role: 'region' }, [h('strong', null, T('shareBadge')), h('div', null, T('shareFor', { name: tr.name || T('namePh') }))]),
-      board(tr, true), keyDates(tr), rulesCard(tr), calendarCard(tr), forecastCard(tr), statsCard(tr), tripList(tr, true),
+      board(tr, true), keyDates(tr), rulesCard(tr), calendarCard(tr), forecastCard(tr), returnCard(tr, !state.pro), statsCard(tr), tripList(tr, true),
       h('div', { class: 'row wrap' }, [h('a', { class: 'pri link', href: location.pathname }, T('shareOpen'))]),
       h('p', { class: 'fine' }, T('disclaimer'))];
     root.replaceChildren.apply(root, kids);
@@ -690,7 +732,13 @@
     applyTheme();
     document.documentElement.lang = lang; document.title = T('app');
     if (shared) { sharedView(shared); return; }
-    if (!state.pro) { root.replaceChildren(header(), paywall()); return; }
+    if (!state.pro) {
+      var locked = current();
+      var gate = [header(), paywall()];
+      if (locked) gate.push(returnCard(locked, true));
+      root.replaceChildren.apply(root, gate);
+      return;
+    }
     var tr = current(), kids = [header()];
     if (!tr) kids.push(h('p', { class: 'tag' }, T('tag')), empty());
     else {
@@ -701,7 +749,7 @@
       if (state.trackers.length > 1) kids.push(overview());
       kids.push(board(tr), leaveCard(tr), keyDates(tr), planner(tr), itinerary(tr), rulesCard(tr));
       if (state.trackers.length > 1) kids.push(groupCard());
-      kids.push(calendarCard(tr), forecastCard(tr), monthCard(tr), weeklyCard(tr), placesCard(tr), statsCard(tr), auditCard(tr), borderCard(tr), tripList(tr));
+      kids.push(calendarCard(tr), forecastCard(tr), returnCard(tr, false), monthCard(tr), weeklyCard(tr), placesCard(tr), statsCard(tr), auditCard(tr), borderCard(tr), stayReportEl(tr), tripList(tr));
       var pr = h('div', { class: 'printonly' }, [h('h1', null, T('printTitle') + ' — ' + tr.name)]);
       kids.push(pr);
     }
